@@ -1,5 +1,5 @@
 {
-  "name": "@restaurant/llm-provider",
+  "name": "@restaurant/conversation",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -9,7 +9,10 @@
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
-    "lint": "echo 'lint placeholder for llm-provider'"
+    "lint": "echo 'lint placeholder for conversation'"
+  },
+  "dependencies": {
+    "@restaurant/llm-provider": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^26.3.0",
