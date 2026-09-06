@@ -8,7 +8,10 @@ export interface CliConfig {
 
 export class ConfigError extends Error {}
 
-export function loadConfig(env: NodeJS.ProcessEnv = process.env): CliConfig {
+export function loadConfig(
+  env: NodeJS.ProcessEnv = process.env,
+  baseDir: string = process.cwd(),
+): CliConfig {
   const rawBin = env.MCP_SERVER_BIN;
   if (!rawBin) {
     throw new ConfigError(
@@ -20,8 +23,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): CliConfig {
     );
   }
 
-  const mcpServerBin = path.resolve(process.cwd(), rawBin);
-  assertServerBinaryIsUsable(mcpServerBin, rawBin);
+  const mcpServerBin = path.resolve(baseDir, rawBin);
+  assertServerBinaryIsUsable(mcpServerBin, rawBin, baseDir);
 
   const mcpServerArgs = env.MCP_SERVER_ARGS ? env.MCP_SERVER_ARGS.split(" ").filter(Boolean) : [];
 
@@ -35,7 +38,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): CliConfig {
 }
 
 
-function assertServerBinaryIsUsable(resolvedPath: string, originalValue: string): void {
+function assertServerBinaryIsUsable(resolvedPath: string, originalValue: string, baseDir: string): void {
   if (!fs.existsSync(resolvedPath)) {
     const buildHint =
       process.platform === "win32"
@@ -45,7 +48,7 @@ function assertServerBinaryIsUsable(resolvedPath: string, originalValue: string)
     throw new ConfigError(
       `No se encontró el binario del servidor MCP en:\n` +
         `  ${resolvedPath}\n\n` +
-        `(MCP_SERVER_BIN="${originalValue}", resuelto respecto al directorio actual: ${process.cwd()})\n\n` +
+        `(MCP_SERVER_BIN="${originalValue}", resuelto respecto a la carpeta del CLI: ${baseDir})\n\n` +
         `Verifica lo siguiente:\n` +
         `  1. Que ya compilaste el servidor Go para TU sistema operativo actual (detectado: ${process.platform}):\n` +
         `       ${buildHint}\n` +
