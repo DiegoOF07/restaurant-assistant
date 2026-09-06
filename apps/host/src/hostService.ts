@@ -1,0 +1,129 @@
+import { ConversationLoop, Session } from "@restaurant/conversation";
+import type { ConfirmationHandler, ToolRunner, TurnResult } from "@restaurant/conversation";
+import type { LLMProvider, ToolSpec } from "@restaurant/llm-provider";
+import { McpClient } from "@restaurant/mcp-client";
+
+import { McpLogger } from "./mcpLogger.js";
+import { MultiServerToolRunner } from "./multiServerToolRunner.js";
+import { SessionManager } from "./sessionManager.js";
+import type { LogEntry, McpServerConfig } from "./types.js";
+
+export interface HostServiceOptions {
+  provider: LLMProvider;
+  toolRunner: ToolRunner;
+  toolsRequiringConfirmation?: Iterable<string>;
+  requestConfirmation?: ConfirmationHandler;
+  maxIterations?: number;
+  systemPrompt?: string;
+}
+
+/** Rastrea qué sessionId está "en vuelo" en este momento, para poder atribuirle los eventos de mcp-client */
+class SessionContext {
+  current = "unknown";
+}
+
+/** Configuración para construir un HostService real, con servidores MCP de verdad lanzados por stdio */
+export interface HostServiceConfig {
+  provider: LLMProvider;
+  servers: McpServerConfig[];
+  toolsRequiringConfirmation?: Iterable<string>;
+  requestConfirmation?: ConfirmationHandler;
+  maxIterations?: number;
+  systemPrompt?: string;
+}
+
+/** HostService es la API común que consumen tanto apps/cli como apps/web */
+export class HostService {
+  private readonly loop: ConversationLoop;
+  private readonly sessions = new SessionManager();
+  private readonly logger: McpLogger;
+  private readonly sessionContext: SessionContext;
+  private readonly mcpClients: McpClient[];
+
+  constructor(
+    options: HostServiceOptions,
+    internals?: { logger?: McpLogger; sessionContext?: SessionContext; mcpClients?: McpClient[] },
+  ) {
+    this.logger = internals?.logger ?? new McpLogger();
+    this.sessionContext = internals?.sessionContext ?? new SessionContext();
+    this.mcpClients = internals?.mcpClients ?? [];
+
+    this.loop = new ConversationLoop({
+      provider: options.provider,
+      toolRunner: options.toolRunner,
+      toolsRequiringConfirmation: options.toolsRequiringConfirmation,
+      requestConfirmation: options.requestConfirmation,
+      maxIterations: options.maxIterations,
+      systemPrompt: options.systemPrompt,
+    });
+  }
+
+  /**
+   * Construye un HostService real y lanza cada servidor configurado como
+   * subproceso stdio, completa su handshake MCP, y los combina en un
+   * único MultiServerToolRunner
+   */
+  static async create(config: HostServiceConfig): Promise<HostService> {
+    const logger = new McpLogger();
+    const sessionContext = new SessionContext();
+    const mcpClients: McpClient[] = [];
+    const namedServers: Array<{ name: string; toolRunner: ToolRunner }> = [];
+
+    for (const serverConfig of config.servers) {
+      const client = McpClient.overStdio(
+        { command: serverConfig.command, args: serverConfig.args },
+        { onEvent: (event) => logger.recordMcpEvent(sessionContext.current, serverConfig.name, event) },
+      );
+      await client.initialize();
+      mcpClients.push(client);
+      namedServers.push({ name: serverConfig.name, toolRunner: client });
+    }
+
+    const toolRunner = new MultiServerToolRunner(namedServers);
+
+    return new HostService(
+      {
+        provider: config.provider,
+        toolRunner,
+        toolsRequiringConfirmation: config.toolsRequiringConfirmation,
+        requestConfirmation: config.requestConfirmation,
+        maxIterations: config.maxIterations,
+        systemPrompt: config.systemPrompt,
+      },
+      { logger, sessionContext, mcpClients },
+    );
+  }
+
+  /** Procesa un mensaje de usuario dentro de una sesión */
+  async sendMessage(sessionId: string, userInput: string): Promise<TurnResult> {
+    const session: Session = this.sessions.get(sessionId);
+    this.sessionContext.current = sessionId;
+    try {
+      return await this.loop.runTurn(session, userInput, {
+        onEvent: (event) => this.logger.recordConversationEvent(sessionId, event),
+      });
+    } finally {
+      this.sessionContext.current = "unknown";
+    }
+  }
+
+  /** Log unificado (protocolo MCP + ciclo de conversación) de una sesión,
+   * en el orden en que ocurrieron los eventos */
+  getLog(sessionId: string): readonly LogEntry[] {
+    return this.logger.getEntries(sessionId);
+  }
+
+  async listAvailableTools(): Promise<ToolSpec[]> {
+    return this.loop.discoverTools();
+  }
+
+  hasSession(sessionId: string): boolean {
+    return this.sessions.has(sessionId);
+  }
+
+  /** Cierra todos los servidores MCP lanzados por create(). No hace nada
+   * si el HostService se construyó con el constructor directo */
+  async close(): Promise<void> {
+    await Promise.all(this.mcpClients.map((client) => client.close()));
+  }
+}
