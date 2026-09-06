@@ -3,15 +3,16 @@ import type { HostService } from "@restaurant/host";
 import { MaxIterationsExceededError } from "@restaurant/conversation";
 import { formatLogEntry, formatWelcomeBanner } from "./formatting.js";
 import type { LineSource } from "./lineSource.js";
+import { safePrompt } from "./promptUtils.js";
 
 const SESSION_ID = "cli-session";
 
-/** Corre el ciclo interactivo hasta que el usuario escriba /exit o cierre la entrada */
+/** Corre el ciclo interactivo hasta que el usuario escriba /exit o cierre la entrada (Ctrl+D / EOF)*/
 export async function runRepl(rl: ReadlineInterface, lines: LineSource, host: HostService): Promise<void> {
   const tools = await host.listAvailableTools();
   console.log(formatWelcomeBanner(tools));
-  rl.setPrompt("Tú> ");
-  rl.prompt();
+  rl.setPrompt("tú> ");
+  safePrompt(rl);
 
   while (true) {
     const line = await lines.next();
@@ -19,7 +20,7 @@ export async function runRepl(rl: ReadlineInterface, lines: LineSource, host: Ho
 
     const input = line.trim();
     if (input.length === 0) {
-      rl.prompt();
+      safePrompt(rl);
       continue;
     }
 
@@ -29,7 +30,7 @@ export async function runRepl(rl: ReadlineInterface, lines: LineSource, host: Ho
 
     if (input === "/tools") {
       for (const tool of tools) console.log(`  - ${tool.name}: ${tool.description}`);
-      rl.prompt();
+      safePrompt(rl);
       continue;
     }
 
@@ -40,7 +41,7 @@ export async function runRepl(rl: ReadlineInterface, lines: LineSource, host: Ho
       } else {
         for (const entry of entries) console.log(formatLogEntry(entry));
       }
-      rl.prompt();
+      safePrompt(rl);
       continue;
     }
 
@@ -49,14 +50,14 @@ export async function runRepl(rl: ReadlineInterface, lines: LineSource, host: Ho
       console.log(`\n${result.reply}\n`);
     } catch (err) {
       if (err instanceof MaxIterationsExceededError) {
-        console.log("\n[ERROR]  No pude completar tu solicitud en un número razonable de pasos. Intenta reformularla.\n");
+        console.log("\n[ERROR] No pude completar tu solicitud en un número razonable de pasos. Intenta reformularla.\n");
       } else {
         const message = err instanceof Error ? err.message : String(err);
-        console.log(`\n[ERROR]  Ocurrió un error inesperado: ${message}\n`);
+        console.log(`\n[ERROR] Ocurrió un error inesperado: ${message}\n`);
       }
     }
-    rl.setPrompt("Tú> ");
-    rl.prompt();
+    rl.setPrompt("tú> ");
+    safePrompt(rl);
   }
 }
 
