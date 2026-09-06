@@ -10,7 +10,7 @@ const SESSION_ID = "cli-session";
 export async function runRepl(rl: ReadlineInterface, lines: LineSource, host: HostService): Promise<void> {
   const tools = await host.listAvailableTools();
   console.log(formatWelcomeBanner(tools));
-  rl.setPrompt("tú> ");
+  rl.setPrompt("Tú> ");
   rl.prompt();
 
   while (true) {
@@ -49,13 +49,13 @@ export async function runRepl(rl: ReadlineInterface, lines: LineSource, host: Ho
       console.log(`\n${result.reply}\n`);
     } catch (err) {
       if (err instanceof MaxIterationsExceededError) {
-        console.log("\n  No pude completar tu solicitud en un número razonable de pasos. Intenta reformularla.\n");
+        console.log("\n[ERROR]  No pude completar tu solicitud en un número razonable de pasos. Intenta reformularla.\n");
       } else {
         const message = err instanceof Error ? err.message : String(err);
-        console.log(`\n  Ocurrió un error inesperado: ${message}\n`);
+        console.log(`\n[ERROR]  Ocurrió un error inesperado: ${message}\n`);
       }
     }
-    rl.setPrompt("tú> ");
+    rl.setPrompt("Tú> ");
     rl.prompt();
   }
 }

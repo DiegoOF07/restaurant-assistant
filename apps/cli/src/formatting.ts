@@ -16,7 +16,7 @@ export function formatWelcomeBanner(tools: ToolSpec[]): string {
 }
 
 export function formatLogEntry(entry: LogEntry): string {
-  const okMark = entry.ok === undefined ? "" : entry.ok ? " ✅" : " ❌";
+  const okMark = entry.ok === undefined ? "" : entry.ok ? " [CORRECT]" : " [FAIL]";
   const tool = entry.toolName ? ` (${entry.toolName})` : "";
   const method = entry.method ? ` [${entry.method}]` : "";
   const time = new Date(entry.timestamp).toISOString().split("T")[1]?.replace("Z", "");
