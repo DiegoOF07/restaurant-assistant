@@ -71,7 +71,7 @@ export class HostService {
 
     for (const serverConfig of config.servers) {
       const client = McpClient.overStdio(
-        { command: serverConfig.command, args: serverConfig.args },
+        { command: serverConfig.command, args: serverConfig.args, env: serverConfig.env },
         { onEvent: (event) => logger.recordMcpEvent(sessionContext.current, serverConfig.name, event) },
       );
       await client.initialize();

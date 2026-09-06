@@ -61,7 +61,7 @@ describe("MultiServerToolRunner", () => {
 
   it("callTool de una herramienta inexistente lanza un error claro", async () => {
     const multi = new MultiServerToolRunner([{ name: "restaurant", toolRunner: new StubToolRunner([tool("ping")]) }]);
-    await expect(multi.callTool("does_not_exist", {})).rejects.toThrow(/unknown tool/);
+    await expect(multi.callTool("does_not_exist", {})).rejects.toThrow(/herramienta desconocida/);
   });
 
   it("serverFor() reporta a qué servidor pertenece una herramienta", async () => {

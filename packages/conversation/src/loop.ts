@@ -98,7 +98,7 @@ export class ConversationLoop {
           role: "tool",
           toolCallId: toolCall.id,
           toolName: toolCall.name,
-          content: "The user did not confirm this operation; it was not executed.",
+          content: "El usuario no confirmó esta operación; no se ejecutó.",
           isError: true,
         });
         return;
@@ -123,7 +123,7 @@ export class ConversationLoop {
         role: "tool",
         toolCallId: toolCall.id,
         toolName: toolCall.name,
-        content: `Tool call failed: ${message}`,
+        content: `La llamada a la herramienta falló: ${message}`,
         isError: true,
       });
     }

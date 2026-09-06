@@ -61,7 +61,7 @@ export class MultiServerToolRunner implements ToolRunner {
 
     const serverName = this.serverNameByTool.get(name);
     if (!serverName) {
-      throw new Error(`unknown tool: ${name}`);
+      throw new Error(`herramienta desconocida: ${name}`);
     }
     const runner = this.runnerByServerName.get(serverName)!;
     return runner.callTool(name, args);

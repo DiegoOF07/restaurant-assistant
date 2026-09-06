@@ -19,6 +19,13 @@ export interface JsonRpcResponseMessage {
 
 export const MCP_PROTOCOL_VERSION = "2025-06-18";
 
+/**
+ * Todas las versiones que este cliente sabe hablar, de la preferida a la menos.
+ * El servidor puede responder a `initialize` con una versión distinta a la que pedimos;
+ * si está en esta lista, se continúa con ella.
+ */
+export const SUPPORTED_PROTOCOL_VERSIONS: readonly string[] = [MCP_PROTOCOL_VERSION];
+
 export interface McpServerInfo {
   name: string;
   version: string;

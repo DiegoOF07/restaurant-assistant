@@ -12,3 +12,13 @@ export type {
 } from "./types.js";
 
 export { MockProvider, textMessage } from "./mockProvider.js";
+
+export {
+  AnthropicProvider,
+  toAnthropicTools,
+  fromAnthropicResponse,
+  mapStopReason,
+  type AnthropicProviderOptions,
+  type BetaMessageCreator,
+  type Effort,
+} from "./anthropicProvider.js";

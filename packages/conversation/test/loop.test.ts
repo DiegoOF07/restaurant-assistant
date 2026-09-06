@@ -143,7 +143,7 @@ describe("ConversationLoop", () => {
     expect(toolRunner.calls).toHaveLength(0); // nunca se llamó la herramienta real
     const toolMessage = session.getHistory().find((m) => m.role === "tool");
     expect(toolMessage).toMatchObject({ isError: true });
-    expect((toolMessage as { content: string }).content).toMatch(/did not confirm/);
+    expect((toolMessage as { content: string }).content).toMatch(/no confirmó/);
   });
 
   it("ejecuta una herramienta sensible cuando el handler de confirmación aprueba", async () => {

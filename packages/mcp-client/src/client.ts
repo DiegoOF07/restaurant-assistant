@@ -3,6 +3,7 @@ import { StdioTransport, type StdioTransportOptions } from "./stdioTransport.js"
 import type { Transport } from "./transport.js";
 import {
   MCP_PROTOCOL_VERSION,
+  SUPPORTED_PROTOCOL_VERSIONS,
   type CallToolResult,
   type InitializeResult,
   type ListToolsResult,
@@ -17,6 +18,7 @@ export interface McpClientOptions extends JsonRpcClientOptions {
 export class McpClient {
   private readonly rpc: JsonRpcClient;
   private serverInfo?: McpServerInfo;
+  private negotiatedVersion?: string;
   private ready = false;
 
   private constructor(
@@ -50,14 +52,20 @@ export class McpClient {
       clientInfo: this.clientInfo,
     });
 
-    if (result.protocolVersion !== MCP_PROTOCOL_VERSION) {
+    // El servidor puede responder con una versión distinta a la pedida: así se negocia.
+    // Si no la hablamos, la especificación dice que el cliente debe cortar la conexión —
+    // continuar con una versión desconocida es peor que fallar de inmediato.
+    if (!SUPPORTED_PROTOCOL_VERSIONS.includes(result.protocolVersion)) {
+      await this.close();
       throw new Error(
-        `el servidor negoció una versión de protocolo no soportada: ${result.protocolVersion} (se esperaba ${MCP_PROTOCOL_VERSION})`,
+        `el servidor ofreció la versión de protocolo ${result.protocolVersion}, que este cliente no soporta ` +
+          `(soportadas: ${SUPPORTED_PROTOCOL_VERSIONS.join(", ")})`,
       );
     }
 
     this.rpc.notify("notifications/initialized");
     this.serverInfo = result.serverInfo;
+    this.negotiatedVersion = result.protocolVersion;
     this.ready = true;
     return result;
   }
@@ -83,6 +91,11 @@ export class McpClient {
 
   getServerInfo(): McpServerInfo | undefined {
     return this.serverInfo;
+  }
+
+  /** Versión de protocolo acordada en initialize, o undefined si aún no ocurrió. */
+  getNegotiatedVersion(): string | undefined {
+    return this.negotiatedVersion;
   }
 
   isReady(): boolean {

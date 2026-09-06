@@ -14,7 +14,7 @@ export function createLineSourceConfirmationHandler(rl: ReadlineInterface, lines
 
     const answer = (await lines.next()) ?? "";
     const approved = /^s(í|i)?$/i.test(answer.trim());
-    console.log(approved ? "[CONFIRMED] Confirmado.\n" : "[CANCELLED] Cancelado.\n");
+    console.log(approved ? "[CONFIRMADO] Operación confirmada.\n" : "[CANCELADO] Operación cancelada.\n");
     return approved;
   };
 }

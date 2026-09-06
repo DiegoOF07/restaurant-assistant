@@ -4,7 +4,7 @@ import type { ToolSpec } from "@restaurant/llm-provider";
 export function formatWelcomeBanner(tools: ToolSpec[]): string {
   const toolNames = tools.map((t) => `  - ${t.name}: ${t.description}`).join("\n");
   return [
-    "== Restaurant MCP Assistant (CLI) ==",
+    "== Asistente MCP de Restaurante (CLI) ==",
     "",
     "Herramientas disponibles:",
     toolNames || "  (ninguna)",
@@ -16,7 +16,7 @@ export function formatWelcomeBanner(tools: ToolSpec[]): string {
 }
 
 export function formatLogEntry(entry: LogEntry): string {
-  const okMark = entry.ok === undefined ? "" : entry.ok ? " [CORRECT]" : " [FAIL]";
+  const okMark = entry.ok === undefined ? "" : entry.ok ? " [OK]" : " [FALLÓ]";
   const tool = entry.toolName ? ` (${entry.toolName})` : "";
   const method = entry.method ? ` [${entry.method}]` : "";
   const time = new Date(entry.timestamp).toISOString().split("T")[1]?.replace("Z", "");

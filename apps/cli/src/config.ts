@@ -4,6 +4,12 @@ export interface CliConfig {
   mcpServerBin: string;
   mcpServerArgs: string[];
   maxIterations: number;
+  /** Si falta, el CLI cae al proveedor de demostración en vez de fallar. */
+  anthropicApiKey?: string;
+  anthropicModel?: string;
+  /** Rol e identidad bajo los que el servidor MCP debe operar (sección 13.1 del plan). */
+  userRole: string;
+  userId: string;
 }
 
 export class ConfigError extends Error {}
@@ -34,7 +40,21 @@ export function loadConfig(
     throw new ConfigError(`HOST_MAX_ITERATIONS debe ser un entero positivo, se recibió: ${maxIterationsRaw}`);
   }
 
-  return { mcpServerBin, mcpServerArgs, maxIterations };
+  // El rol se valida en el SERVIDOR; acá sólo se transporta. Si no se define, el servidor
+  // aplica por su cuenta el rol menos privilegiado.
+  const userRole = env.MCP_USER_ROLE?.trim() || "waiter";
+  const userId = env.MCP_USER_ID?.trim() || "unspecified";
+
+  const config: CliConfig = { mcpServerBin, mcpServerArgs, maxIterations, userRole, userId };
+
+  // El LLM real es opcional: sin API key el CLI sigue siendo demostrable con el proveedor
+  // heurístico, que es justo lo que permite probar el resto del sistema sin costo ni conexión.
+  const apiKey = env.ANTHROPIC_API_KEY?.trim();
+  if (apiKey) config.anthropicApiKey = apiKey;
+  const model = env.ANTHROPIC_MODEL?.trim();
+  if (model) config.anthropicModel = model;
+
+  return config;
 }
 
 

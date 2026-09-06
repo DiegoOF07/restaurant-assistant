@@ -6,6 +6,11 @@ export interface McpServerConfig {
   name: string;
   command: string;
   args?: string[];
+  /**
+   * Variables de entorno extra para el subproceso. Con stdio es el canal natural para
+   * pasarle al servidor la identidad (rol/usuario) bajo la que debe operar.
+   */
+  env?: Record<string, string>;
 }
 
 export interface LogEntry {
