@@ -244,4 +244,24 @@ describe("ConversationLoop", () => {
     expect(result.reply).toBe("listo"); // la respuesta visible no lleva eventos técnicos mezclados
     expect(events.map((e) => e.kind)).toEqual(["tool_call_requested", "tool_call_result"]);
   });
+
+  it("un onEvent por llamada recibe los eventos ADEMÁS del onEvent del constructor, no en su lugar", async () => {
+    const provider = new MockProvider();
+    provider.enqueueToolCall([{ id: "call-1", name: "get_dish_availability", arguments: {} }]);
+    provider.enqueueText("listo");
+
+    const toolRunner = new FakeToolRunner([AVAILABILITY_TOOL], {
+      get_dish_availability: () => ({ content: [{ type: "text", text: "ok" }] }),
+    });
+
+    const constructorEvents: ConversationEvent[] = [];
+    const perCallEvents: ConversationEvent[] = [];
+    const loop = new ConversationLoop({ provider, toolRunner, onEvent: (e) => constructorEvents.push(e) });
+    const session = new Session("s1");
+
+    await loop.runTurn(session, "hola", { onEvent: (e) => perCallEvents.push(e) });
+
+    expect(constructorEvents.map((e) => e.kind)).toEqual(["tool_call_requested", "tool_call_result"]);
+    expect(perCallEvents).toEqual(constructorEvents);
+  });
 });

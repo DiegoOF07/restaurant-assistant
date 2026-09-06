@@ -41,7 +41,16 @@ export class ConversationLoop {
   }
 
   /** Procesa un mensaje del usuario hasta obtener una respuesta final de texto */
-  async runTurn(session: Session, userInput: string): Promise<TurnResult> {
+  async runTurn(
+    session: Session,
+    userInput: string,
+    callOptions?: { onEvent?: (event: ConversationEvent) => void },
+  ): Promise<TurnResult> {
+    const emit = (event: ConversationEvent) => {
+      this.emit(event);
+      callOptions?.onEvent?.(event);
+    };
+
     session.appendMessage({ role: "user", content: userInput });
     const tools = await this.discoverTools();
 
@@ -60,21 +69,25 @@ export class ConversationLoop {
       }
 
       for (const toolCall of toolCalls) {
-        await this.executeToolCall(session, toolCall);
+        await this.executeToolCall(session, toolCall, emit);
       }
     }
 
-    this.emit({ kind: "iteration_limit_reached", iterations: this.maxIterations, timestamp: Date.now() });
+    emit({ kind: "iteration_limit_reached", iterations: this.maxIterations, timestamp: Date.now() });
     throw new MaxIterationsExceededError(this.maxIterations);
   }
 
-  private async executeToolCall(session: Session, toolCall: ToolCall): Promise<void> {
-    this.emit({ kind: "tool_call_requested", toolCall, timestamp: Date.now() });
+  private async executeToolCall(
+    session: Session,
+    toolCall: ToolCall,
+    emit: (event: ConversationEvent) => void,
+  ): Promise<void> {
+    emit({ kind: "tool_call_requested", toolCall, timestamp: Date.now() });
 
     if (this.toolsRequiringConfirmation.has(toolCall.name)) {
-      this.emit({ kind: "tool_call_confirmation_required", toolCall, timestamp: Date.now() });
+      emit({ kind: "tool_call_confirmation_required", toolCall, timestamp: Date.now() });
       const approved = await this.confirm(toolCall);
-      this.emit({
+      emit({
         kind: approved ? "tool_call_confirmed" : "tool_call_rejected",
         toolCall,
         timestamp: Date.now(),
@@ -94,7 +107,7 @@ export class ConversationLoop {
 
     try {
       const execResult = await this.options.toolRunner.callTool(toolCall.name, toolCall.arguments);
-      this.emit({ kind: "tool_call_result", toolCall, isError: !!execResult.isError, timestamp: Date.now() });
+      emit({ kind: "tool_call_result", toolCall, isError: !!execResult.isError, timestamp: Date.now() });
 
       session.appendMessage({
         role: "tool",
@@ -105,7 +118,7 @@ export class ConversationLoop {
       });
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      this.emit({ kind: "tool_call_protocol_error", toolCall, message, timestamp: Date.now() });
+      emit({ kind: "tool_call_protocol_error", toolCall, message, timestamp: Date.now() });
       session.appendMessage({
         role: "tool",
         toolCallId: toolCall.id,
