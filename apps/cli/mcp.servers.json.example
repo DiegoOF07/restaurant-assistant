@@ -1,0 +1,27 @@
+{
+  "servers": [
+    {
+      "name": "restaurant-local",
+      "description": "Servidor MCP de recetas e inventario",
+      "command": "../../../restaurant-mcp-server/bin/restaurant-mcp-server",
+      "args": [],
+      "env": {}
+    },
+
+    {
+      "name": "filesystem",
+      "description": "Servidor MCP oficial de sistema de archivos. Requiere Node y acceso a red la primera vez.",
+      "enabled": false,
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-filesystem", "/ruta/que/quieras/exponer"]
+    },
+
+    {
+      "name": "git",
+      "description": "Servidor MCP oficial de Git. Requiere uv/uvx instalado.",
+      "enabled": false,
+      "command": "uvx",
+      "args": ["mcp-server-git", "--repository", "/ruta/al/repositorio"]
+    },
+  ]
+}

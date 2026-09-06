@@ -8,6 +8,7 @@ import {
   type TurnResult,
 } from "./types.js";
 
+/** Todo lo que el ciclo necesita. Sin `requestConfirmation`, toda operación sensible se rechaza. */
 export interface ConversationLoopOptions {
   provider: LLMProvider;
   toolRunner: ToolRunner;
@@ -18,6 +19,12 @@ export interface ConversationLoopOptions {
   onEvent?: (event: ConversationEvent) => void;
 }
 
+/**
+ * Ciclo de tool-calling: pide un turno al modelo, ejecuta las herramientas que pida y
+ * repite hasta obtener una respuesta de texto o agotar `maxIterations`.
+ *
+ * El tope no es decorativo: un modelo confundido puede pedir herramientas indefinidamente.
+ */
 export class ConversationLoop {
   private toolSpecsCache?: ToolSpec[];
   private readonly toolsRequiringConfirmation: Set<string>;

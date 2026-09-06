@@ -11,10 +11,17 @@ import {
   type ToolDefinition,
 } from "./types.js";
 
+/** Opciones del cliente; hereda del transporte JSON-RPC el timeout y el listener de eventos. */
 export interface McpClientOptions extends JsonRpcClientOptions {
   clientInfo?: McpServerInfo;
 }
 
+/**
+ * Cliente MCP completo: handshake, negociación de versión y llamadas a herramientas.
+ *
+ * Implementa estructuralmente ToolRunner (listTools/callTool), así que el host puede
+ * usarlo directamente sin que mcp-client dependa del paquete conversation.
+ */
 export class McpClient {
   private readonly rpc: JsonRpcClient;
   private serverInfo?: McpServerInfo;

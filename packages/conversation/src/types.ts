@@ -6,6 +6,11 @@ export interface ToolRunner {
   callTool(name: string, args: Record<string, unknown>): Promise<ToolExecutionResult>;
 }
 
+/**
+ * Resultado de ejecutar una herramienta. `isError` marca un fallo de NEGOCIO (permiso
+ * denegado, inventario insuficiente), que se le devuelve al modelo para que lo explique;
+ * un fallo de PROTOCOLO se lanza como excepción y no llega acá.
+ */
 export interface ToolExecutionResult {
   content: Array<{ type: string; text: string }>;
   structuredContent?: unknown;
@@ -28,6 +33,7 @@ export type ConversationEvent =
   | { kind: "tool_call_protocol_error"; toolCall: ToolCall; message: string; timestamp: number }
   | { kind: "iteration_limit_reached"; iterations: number; timestamp: number };
 
+/** Respuesta final de un turno. `iterations` dice cuántas vueltas de tool-calling costó. */
 export interface TurnResult {
   reply: string;
   iterations: number;

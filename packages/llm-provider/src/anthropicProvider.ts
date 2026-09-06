@@ -30,6 +30,7 @@ const DEFAULT_MAX_TOKENS = 16000;
 /** Fallback ante rechazos por políticas de seguridad: reintenta en otro modelo dentro de la misma llamada. */
 const FALLBACK_BETA = "server-side-fallback-2026-07-01";
 
+/** Profundidad de razonamiento. A mayor esfuerzo, mejor decisión y más tokens gastados. */
 export type Effort = "low" | "medium" | "high" | "xhigh" | "max";
 
 /**
@@ -42,6 +43,7 @@ export interface BetaMessageCreator {
   ): Promise<Anthropic.Beta.BetaMessage>;
 }
 
+/** Configuración del adaptador. Todo es opcional: sin nada, usa el modelo más barato. */
 export interface AnthropicProviderOptions {
   /** Si se omite, el SDK resuelve la credencial del entorno (ANTHROPIC_API_KEY, etc.). */
   apiKey?: string;
@@ -59,6 +61,12 @@ export interface AnthropicProviderOptions {
   createMessage?: BetaMessageCreator;
 }
 
+/**
+ * Adaptador real contra la API de Anthropic.
+ *
+ * Es el único punto del sistema que conoce el formato de mensajes de Anthropic; hacia
+ * afuera sólo expone el vocabulario de types.ts.
+ */
 export class AnthropicProvider implements LLMProvider {
   private readonly createMessage: BetaMessageCreator;
   private readonly model: string;

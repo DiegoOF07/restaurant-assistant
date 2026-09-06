@@ -1,39 +1,27 @@
-import * as fs from "node:fs";
-import * as path from "node:path";
+/** Configuración del CLI. La lista de servidores MCP NO está acá: vive en serversConfig.ts. */
 export interface CliConfig {
-  mcpServerBin: string;
-  mcpServerArgs: string[];
   maxIterations: number;
   /** Si falta, el CLI cae al proveedor de demostración en vez de fallar. */
   anthropicApiKey?: string;
   anthropicModel?: string;
-  /** Rol e identidad bajo los que el servidor MCP debe operar (sección 13.1 del plan). */
+  /** Rol e identidad bajo los que los servidores MCP deben operar (sección 13.1 del plan). */
   userRole: string;
   userId: string;
+  /** Ruta explícita al archivo de servidores MCP, si se pidió una. */
+  configPath?: string;
 }
 
+/**
+ * Error de configuración atribuible al usuario. Se distingue de un fallo inesperado
+ * porque su mensaje se imprime tal cual, sin traza de pila: ya explica qué corregir.
+ */
 export class ConfigError extends Error {}
 
-export function loadConfig(
-  env: NodeJS.ProcessEnv = process.env,
-  baseDir: string = process.cwd(),
-): CliConfig {
-  const rawBin = env.MCP_SERVER_BIN;
-  if (!rawBin) {
-    throw new ConfigError(
-      "Falta la variable de entorno MCP_SERVER_BIN (ruta al binario compilado de restaurant-mcp-server).\n\n" +
-        "Puedes definirla de dos formas:\n" +
-        "  1. Crear un archivo .env en apps/cli/ (ver .env.example) con:\n" +
-        "       MCP_SERVER_BIN=../restaurant-mcp-server/bin/restaurant-mcp-server\n" +
-        "  2. O exportarla en tu shell antes de correr el CLI.",
-    );
-  }
-
-  const mcpServerBin = path.resolve(baseDir, rawBin);
-  assertServerBinaryIsUsable(mcpServerBin, rawBin, baseDir);
-
-  const mcpServerArgs = env.MCP_SERVER_ARGS ? env.MCP_SERVER_ARGS.split(" ").filter(Boolean) : [];
-
+/**
+ * Lee la configuración del propio CLI. La lista de servidores MCP NO se resuelve acá:
+ * vive en su propio archivo y la resuelve resolveServers() (ver serversConfig.ts).
+ */
+export function loadConfig(env: NodeJS.ProcessEnv = process.env): CliConfig {
   const maxIterationsRaw = env.HOST_MAX_ITERATIONS;
   const maxIterations = maxIterationsRaw ? Number.parseInt(maxIterationsRaw, 10) : 8;
   if (Number.isNaN(maxIterations) || maxIterations <= 0) {
@@ -45,7 +33,10 @@ export function loadConfig(
   const userRole = env.MCP_USER_ROLE?.trim() || "waiter";
   const userId = env.MCP_USER_ID?.trim() || "unspecified";
 
-  const config: CliConfig = { mcpServerBin, mcpServerArgs, maxIterations, userRole, userId };
+  const config: CliConfig = { maxIterations, userRole, userId };
+
+  const configPath = env.MCP_CONFIG_FILE?.trim();
+  if (configPath) config.configPath = configPath;
 
   // El LLM real es opcional: sin API key el CLI sigue siendo demostrable con el proveedor
   // heurístico, que es justo lo que permite probar el resto del sistema sin costo ni conexión.
@@ -55,40 +46,4 @@ export function loadConfig(
   if (model) config.anthropicModel = model;
 
   return config;
-}
-
-
-function assertServerBinaryIsUsable(resolvedPath: string, originalValue: string, baseDir: string): void {
-  if (!fs.existsSync(resolvedPath)) {
-    const buildHint =
-      process.platform === "win32"
-        ? "go build -o bin\\restaurant-mcp-server.exe .\\cmd\\stdio"
-        : "go build -o bin/restaurant-mcp-server ./cmd/stdio";
-
-    throw new ConfigError(
-      `No se encontró el binario del servidor MCP en:\n` +
-        `  ${resolvedPath}\n\n` +
-        `(MCP_SERVER_BIN="${originalValue}", resuelto respecto a la carpeta del CLI: ${baseDir})\n\n` +
-        `Verifica lo siguiente:\n` +
-        `  1. Que ya compilaste el servidor Go para TU sistema operativo actual (detectado: ${process.platform}):\n` +
-        `       ${buildHint}\n` +
-        `  2. Que la ruta en MCP_SERVER_BIN (o en tu .env) apunta exactamente a ese archivo.\n` +
-        `  3. Si usas WSL: compila y corre el CLI desde el MISMO entorno. Un binario compilado dentro de\n` +
-        `     WSL (Linux) no puede ejecutarse desde PowerShell/node.exe de Windows, y viceversa — son dos\n` +
-        `     sistemas operativos distintos aunque compartan el mismo disco.\n` +
-        `  4. En Windows el binario debe terminar en ".exe" (Go lo agrega automáticamente al compilar ahí);\n` +
-        `     en Linux/macOS/WSL, sin extensión.`,
-    );
-  }
-
-  if (process.platform !== "win32") {
-    try {
-      fs.accessSync(resolvedPath, fs.constants.X_OK);
-    } catch {
-      throw new ConfigError(
-        `El archivo existe pero no tiene permisos de ejecución:\n  ${resolvedPath}\n` +
-          `Corrígelo con: chmod +x "${resolvedPath}"`,
-      );
-    }
-  }
 }

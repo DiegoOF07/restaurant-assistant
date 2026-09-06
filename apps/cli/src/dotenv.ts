@@ -1,6 +1,7 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 
+
 export function parseEnvFile(content: string): Record<string, string> {
   const result: Record<string, string> = {};
 
@@ -25,6 +26,11 @@ export function parseEnvFile(content: string): Record<string, string> {
   return result;
 }
 
+/**
+ * Carga un .env en el entorno del proceso. Las variables YA definidas ganan: lo que se
+ * exporta en la shell debe poder sobreescribir al archivo, no al revés. Si no existe,
+ * no hace nada: el archivo es opcional.
+ */
 export function loadDotEnv(
   filePath: string = path.resolve(process.cwd(), ".env"),
   env: NodeJS.ProcessEnv = process.env,

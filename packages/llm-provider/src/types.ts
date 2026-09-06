@@ -16,6 +16,7 @@ export interface ToolCall {
   arguments: Record<string, unknown>;
 }
 
+/** Un turno escrito por la persona. */
 export interface UserMessage {
   role: "user";
   content: string;
@@ -37,11 +38,13 @@ export interface ToolResultMessage {
   isError?: boolean;
 }
 
+/** Cualquier entrada del historial. Es lo único que el resto del sistema conoce de un LLM. */
 export type ConversationMessage = UserMessage | AssistantMessage | ToolResultMessage;
 
 /** Por qué el proveedor terminó su turno */
 export type StopReason = "end_turn" | "tool_use" | "max_tokens" | "error";
 
+/** Todo lo que un proveedor necesita para producir el siguiente turno del asistente. */
 export interface CompletionRequest {
   systemPrompt?: string;
   messages: ConversationMessage[];
@@ -49,6 +52,7 @@ export interface CompletionRequest {
   maxTokens?: number;
 }
 
+/** El turno producido, más la razón por la que terminó: si es "tool_use", faltan herramientas por ejecutar. */
 export interface CompletionResult {
   message: AssistantMessage;
   stopReason: StopReason;

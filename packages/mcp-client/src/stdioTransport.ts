@@ -2,6 +2,10 @@ import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { createInterface } from "node:readline";
 import type { Transport } from "./transport.js";
 
+/**
+ * Cómo lanzar el subproceso del servidor. `env` se FUSIONA con el entorno del proceso
+ * actual, no lo reemplaza: es el canal por el que viaja la identidad (rol y usuario).
+ */
 export interface StdioTransportOptions {
   command: string;
   args?: string[];

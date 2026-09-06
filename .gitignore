@@ -142,3 +142,6 @@ vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 .vite/
 .env
+# Configuración local de servidores MCP (rutas propias de cada máquina).
+# La plantilla versionada es mcp.servers.json.example.
+apps/cli/mcp.servers.json

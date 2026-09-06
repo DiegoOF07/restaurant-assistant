@@ -1,5 +1,5 @@
 import type { ToolSpec } from "@restaurant/llm-provider";
-import type { ConfirmationHandler } from "@restaurant/conversation";
+import type { ConfirmationHandler, ConversationEvent } from "@restaurant/conversation";
 
 /** Configuración de un servidor MCP a lanzar por stdio al arrancar el host. */
 export interface McpServerConfig {
@@ -13,6 +13,10 @@ export interface McpServerConfig {
   env?: Record<string, string>;
 }
 
+/**
+ * Una línea del log unificado. `sequence` conserva el orden real entre eventos del
+ * protocolo MCP y del ciclo de conversación, que llegan por caminos distintos.
+ */
 export interface LogEntry {
   sequence: number;
   sessionId: string;
@@ -26,4 +30,4 @@ export interface LogEntry {
   detail?: unknown;
 }
 
-export type { ConfirmationHandler, ToolSpec };
+export type { ConfirmationHandler, ConversationEvent, ToolSpec };

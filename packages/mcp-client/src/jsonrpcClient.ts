@@ -10,6 +10,7 @@ interface PendingRequest {
   timer: ReturnType<typeof setTimeout>;
 }
 
+/** Ajustes del transporte JSON-RPC, comunes a cualquier protocolo montado encima. */
 export interface JsonRpcClientOptions {
   /** Milisegundos a esperar una respuesta antes de rechazar */
   requestTimeoutMs?: number;

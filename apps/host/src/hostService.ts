@@ -1,5 +1,5 @@
 import { ConversationLoop, Session } from "@restaurant/conversation";
-import type { ConfirmationHandler, ToolRunner, TurnResult } from "@restaurant/conversation";
+import type { ConfirmationHandler, ConversationEvent, ToolRunner, TurnResult } from "@restaurant/conversation";
 import type { LLMProvider, ToolSpec } from "@restaurant/llm-provider";
 import { McpClient } from "@restaurant/mcp-client";
 
@@ -8,6 +8,7 @@ import { MultiServerToolRunner } from "./multiServerToolRunner.js";
 import { SessionManager } from "./sessionManager.js";
 import type { LogEntry, McpServerConfig } from "./types.js";
 
+/** Construcción directa, con un ToolRunner ya armado. Para pruebas; en producción se usa create(). */
 export interface HostServiceOptions {
   provider: LLMProvider;
   toolRunner: ToolRunner;
@@ -39,6 +40,7 @@ export class HostService {
   private readonly logger: McpLogger;
   private readonly sessionContext: SessionContext;
   private readonly mcpClients: McpClient[];
+  private readonly toolRunner: ToolRunner;
 
   constructor(
     options: HostServiceOptions,
@@ -47,6 +49,7 @@ export class HostService {
     this.logger = internals?.logger ?? new McpLogger();
     this.sessionContext = internals?.sessionContext ?? new SessionContext();
     this.mcpClients = internals?.mcpClients ?? [];
+    this.toolRunner = options.toolRunner;
 
     this.loop = new ConversationLoop({
       provider: options.provider,
@@ -94,13 +97,26 @@ export class HostService {
     );
   }
 
-  /** Procesa un mensaje de usuario dentro de una sesión */
-  async sendMessage(sessionId: string, userInput: string): Promise<TurnResult> {
+  /**
+   * Procesa un mensaje de usuario dentro de una sesión.
+   *
+   * `onEvent` recibe los eventos del ciclo de tool-calling conforme ocurren, para que una
+   * interfaz pueda mostrar actividad en vivo. Es opcional a propósito: el registro interno
+   * ocurre igual, así que quien no lo necesite no cambia nada.
+   */
+  async sendMessage(
+    sessionId: string,
+    userInput: string,
+    onEvent?: (event: ConversationEvent) => void,
+  ): Promise<TurnResult> {
     const session: Session = this.sessions.get(sessionId);
     this.sessionContext.current = sessionId;
     try {
       return await this.loop.runTurn(session, userInput, {
-        onEvent: (event) => this.logger.recordConversationEvent(sessionId, event),
+        onEvent: (event) => {
+          this.logger.recordConversationEvent(sessionId, event);
+          onEvent?.(event);
+        },
       });
     } finally {
       this.sessionContext.current = "unknown";
@@ -115,6 +131,15 @@ export class HostService {
 
   async listAvailableTools(): Promise<ToolSpec[]> {
     return this.loop.discoverTools();
+  }
+
+  /**
+   * Nombre del servidor MCP que expone una herramienta, si se puede determinar.
+   * Permite a la interfaz decir "get_dish_availability (restaurant-local)" cuando hay
+   * varios servidores conectados, que es justo cuando deja de ser obvio.
+   */
+  serverForTool(toolName: string): string | undefined {
+    return this.toolRunner instanceof MultiServerToolRunner ? this.toolRunner.serverFor(toolName) : undefined;
   }
 
   hasSession(sessionId: string): boolean {

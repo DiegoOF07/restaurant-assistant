@@ -14,4 +14,5 @@ export interface McpLogEvent {
   timestamp: number;
 }
 
+/** Recibe cada mensaje que cruza el transporte. El host lo usa para armar el log de la sesión. */
 export type McpEventListener = (event: McpLogEvent) => void;
