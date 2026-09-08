@@ -1,0 +1,33 @@
+{
+  "name": "@restaurant/web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "pnpm run build:server && pnpm run build:client",
+    "build:server": "tsc -p server/tsconfig.json",
+    "build:client": "vite build",
+    "typecheck": "tsc -p server/tsconfig.json --noEmit && tsc -p client/tsconfig.json --noEmit",
+    "start": "node dist-server/main.js",
+    "dev": "vite",
+    "test": "vitest run",
+    "lint": "echo 'lint placeholder for web'"
+  },
+  "dependencies": {
+    "@restaurant/cli": "workspace:*",
+    "@restaurant/conversation": "workspace:*",
+    "@restaurant/host": "workspace:*",
+    "@restaurant/llm-provider": "workspace:*",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0"
+  },
+  "devDependencies": {
+    "@types/node": "^26.3.0",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "@vitejs/plugin-react": "^5.0.0",
+    "typescript": "^7.0.2",
+    "vite": "^7.0.0",
+    "vitest": "^5.0.0"
+  }
+}

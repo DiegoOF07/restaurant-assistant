@@ -2,5 +2,8 @@
 packages:
   - "apps/*"
   - "packages/*"
+
+# esbuild descarga su binario nativo en un script de instalación. Vite lo necesita para
+# compilar el frontend, así que se permite explícitamente.
 allowBuilds:
-  esbuild: set this to true or false
+  esbuild: true

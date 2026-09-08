@@ -1,4 +1,6 @@
 export { loadConfig, ConfigError, type CliConfig } from "./config.js";
+export { loadDotEnv, parseEnvFile } from "./dotenv.js";
+export { SYSTEM_PROMPT } from "./systemPrompt.js";
 export {
   resolveServers,
   assertCommandIsUsable,

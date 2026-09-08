@@ -157,3 +157,7 @@ apps/cli/servers/*
 *.db
 *.db-wal
 *.db-shm
+
+# Salidas de compilación de la interfaz web
+apps/web/dist-server/
+apps/web/dist-client/
