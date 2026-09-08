@@ -2,10 +2,30 @@
   "servers": [
     {
       "name": "restaurant-local",
-      "description": "Servidor MCP de recetas e inventario",
+      "description": "Servidor MCP de recetas e inventario (Go), lanzado como subproceso por stdio.",
       "command": "../../../restaurant-mcp-server/bin/restaurant-mcp-server",
       "args": [],
       "env": {}
+    },
+
+    {
+      "name": "restaurant-remoto",
+      "description": "El mismo servidor, pero ya corriendo en otra máquina. El rol lo decide el token, no el cliente.",
+      "enabled": false,
+      "url": "https://mi-servidor.ejemplo.com/mcp",
+      "headers": {
+        "Authorization": "Bearer ${MCP_REMOTE_TOKEN}"
+      }
+    },
+
+    {
+      "name": "servidor-de-companero",
+      "description": "MCP de un compañero de clase. Si es local usa 'command'; si lo tiene desplegado, 'url'.",
+      "enabled": false,
+      "url": "http://192.168.1.50:8080/mcp",
+      "headers": {
+        "Authorization": "Bearer ${TOKEN_DEL_COMPANERO}"
+      }
     },
 
     {
@@ -22,6 +42,6 @@
       "enabled": false,
       "command": "uvx",
       "args": ["mcp-server-git", "--repository", "/ruta/al/repositorio"]
-    },
+    }
   ]
 }

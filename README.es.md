@@ -128,7 +128,9 @@ no hay que tocar código ni recompilar.
 | Campo | Obligatorio | Notas |
 |---|---|---|
 | `name` | sí | Único. Identifica al servidor en el registro y en `/servers`. |
-| `command` | sí | Con `/` o `\` se resuelve **respecto al archivo**; sin separadores se busca en el `PATH` (`npx`, `uvx`, `docker`). |
+| `command` | uno de los dos | Servidor local. Con `/` o `\` se resuelve **respecto al archivo**; sin separadores se busca en el `PATH` (`npx`, `uvx`, `docker`). |
+| `url` | uno de los dos | Servidor remoto: el endpoint MCP completo, p. ej. `https://host/mcp`. |
+| `headers` | no | Sólo remotos. Acá va el `Authorization: Bearer <token>`. |
 | `args` | no | Arreglo de textos. |
 | `env` | no | Variables extra para el subproceso. |
 | `enabled` | no | `false` deja el servidor documentado pero apagado. |
@@ -144,6 +146,35 @@ anclar al archivo hace que la misma configuración funcione siempre.
 
 `mcp.servers.json` está en `.gitignore` porque contiene rutas propias de cada máquina; la
 plantilla versionada es `mcp.servers.json.example`.
+
+
+### Conectarse a un servidor remoto
+
+Una entrada lleva `command` (local, lanzado por stdio) o `url` (remoto, por HTTP), nunca
+ambos:
+
+```json
+{
+  "name": "restaurant-remoto",
+  "url": "https://mi-servidor.ejemplo.com/mcp",
+  "headers": { "Authorization": "Bearer ${MCP_REMOTE_TOKEN}" }
+}
+```
+
+| Campo | Local (`command`) | Remoto (`url`) |
+|---|---|---|
+| `args`, `env` | ✅ | ❌ — no aplican |
+| `headers` | ❌ — no aplican | ✅ — acá va el token |
+| Identidad | La inyecta el host como `MCP_USER_ROLE` | La deriva el servidor del token |
+
+**El host NO inyecta el rol a un servidor remoto, y es a propósito.** Un servidor remoto no
+puede confiar en algo que elige el cliente: cualquiera que alcance el puerto podría decir que
+es administrador. En su lugar deriva el rol del token. Mandar `MCP_USER_ROLE` por HTTP daría
+la falsa impresión de que sirve para algo.
+
+El CLI avisa cuando una `url` remota usa `http://` en vez de `https://`, porque el token
+viajaría en claro. Avisa en vez de bloquear: entre dos laptops en la red del salón es una
+elección legítima.
 
 ### De dónde sale la configuración
 

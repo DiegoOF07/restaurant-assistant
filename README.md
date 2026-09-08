@@ -62,8 +62,10 @@ nothing at all.
 ## Implemented features
 
 - **MCP client written from scratch**: JSON-RPC 2.0 framing, request/response correlation,
-  `initialize` handshake with **protocol version negotiation**, and stdio transport over a
-  spawned subprocess.
+  and the `initialize` handshake with **protocol version negotiation**.
+- **Two transports behind one interface**: `stdio` (spawns a local subprocess) and
+  **Streamable HTTP** (talks to a remote server, with sessions, bearer tokens and network
+  errors reported against the request that caused them). `McpClient` is identical for both.
 - **Multi-server host**: any number of MCP servers merged into one tool catalog, with duplicate
   tool names rejected up front.
 - **Declarative server configuration** in a JSON file — adding a server never requires touching
@@ -151,7 +153,9 @@ code changes, no rebuild.
 | Field | Required | Notes |
 |---|---|---|
 | `name` | yes | Unique. Identifies the server in the log and in `/servers`. |
-| `command` | yes | With `/` or `\` it is resolved **relative to the config file**; with no separator it is looked up on `PATH` (`npx`, `uvx`, `docker`). |
+| `command` | one of the two | Local server. With `/` or `\` it is resolved **relative to the config file**; with no separator it is looked up on `PATH` (`npx`, `uvx`, `docker`). |
+| `url` | one of the two | Remote server: the full MCP endpoint, e.g. `https://host/mcp`. |
+| `headers` | no | Remote only. Where `Authorization: Bearer <token>` goes. |
 | `args` | no | Array of strings. |
 | `env` | no | Extra environment variables for the subprocess. |
 | `enabled` | no | `false` keeps the server documented but switched off. |
@@ -167,6 +171,35 @@ anchoring to the file makes the same configuration work everywhere.
 
 `mcp.servers.json` is git-ignored because it holds machine-specific paths; the versioned
 template is `mcp.servers.json.example`.
+
+
+### Connecting to a remote server
+
+An entry uses either `command` (local, spawned over stdio) or `url` (remote, over HTTP) —
+never both:
+
+```json
+{
+  "name": "restaurant-remoto",
+  "url": "https://mi-servidor.ejemplo.com/mcp",
+  "headers": { "Authorization": "Bearer ${MCP_REMOTE_TOKEN}" }
+}
+```
+
+| Field | Local (`command`) | Remote (`url`) |
+|---|---|---|
+| `args`, `env` | ✅ | ❌ — not applicable |
+| `headers` | ❌ — not applicable | ✅ — where the token goes |
+| Identity | Injected by the host as `MCP_USER_ROLE` | Derived by the server from the token |
+
+**The host does not inject the role into a remote server, and that is deliberate.** A remote
+server cannot trust something the client chooses: anyone reaching the port could claim to be
+an admin. It derives the role from the token instead. Sending `MCP_USER_ROLE` over HTTP would
+suggest it does something, when it does not.
+
+The CLI warns when a remote `url` uses `http://` instead of `https://`, because the token
+would travel in the clear. It warns rather than blocks: between two laptops on a classroom
+network it is a legitimate choice.
 
 ### Where configuration comes from
 

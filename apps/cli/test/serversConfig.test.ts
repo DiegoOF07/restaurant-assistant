@@ -223,3 +223,82 @@ describe("resolveServers: precedencia de fuentes", () => {
     }
   });
 });
+
+describe("resolveServers: servidores remotos", () => {
+  it("acepta una entrada con url y no le inyecta la identidad", () => {
+    writeConfig({
+      servers: [{ name: "remoto", url: "https://mi-servidor.com/mcp", headers: { Authorization: "Bearer x" } }],
+    });
+
+    const resolved = resolveServers({
+      baseDir,
+      env: {},
+      defaultEnv: { MCP_USER_ROLE: "admin", MCP_USER_ID: "diego" },
+    });
+
+    expect(resolved.servers[0]!.url).toBe("https://mi-servidor.com/mcp");
+    expect(resolved.servers[0]!.headers).toEqual({ Authorization: "Bearer x" });
+    // Por HTTP el rol lo decide el token en el servidor, no el cliente. Mandar env acá
+    // daría la falsa impresión de que sirve para algo.
+    expect(resolved.servers[0]!.env).toBeUndefined();
+    expect(resolved.servers[0]!.command).toBeUndefined();
+  });
+
+  it("sustituye ${VAR} también en las cabeceras, para no escribir el token en el archivo", () => {
+    process.env.TOKEN_REMOTO = "abc123";
+    try {
+      writeConfig({
+        servers: [{ name: "remoto", url: "https://x.com/mcp", headers: { Authorization: "Bearer ${TOKEN_REMOTO}" } }],
+      });
+      const resolved = resolveServers({ baseDir, env: {} });
+      expect(resolved.servers[0]!.headers!.Authorization).toBe("Bearer abc123");
+    } finally {
+      delete process.env.TOKEN_REMOTO;
+    }
+  });
+
+  it("rechaza una entrada con command y url a la vez", () => {
+    writeConfig({ servers: [{ name: "confuso", command: "npx", url: "https://x.com/mcp" }] });
+    expect(() => resolveServers({ baseDir, env: {} })).toThrow(/excluyentes/);
+  });
+
+  it("rechaza una entrada sin command ni url", () => {
+    writeConfig({ servers: [{ name: "vacio" }] });
+    expect(() => resolveServers({ baseDir, env: {} })).toThrow(/falta "command".*o "url"/s);
+  });
+
+  it("rechaza una url malformada antes de intentar hablarle", () => {
+    writeConfig({ servers: [{ name: "roto", url: "no-es-una-url" }] });
+    expect(() => resolveServers({ baseDir, env: {} })).toThrow(/no es válida/);
+  });
+
+  it("rechaza esquemas que no sean http o https", () => {
+    writeConfig({ servers: [{ name: "raro", url: "ftp://x.com/mcp" }] });
+    expect(() => resolveServers({ baseDir, env: {} })).toThrow(/sólo se admiten http y https/);
+  });
+
+  it("rechaza args o env en un servidor remoto, porque no aplican", () => {
+    writeConfig({ servers: [{ name: "remoto", url: "https://x.com/mcp", args: ["--algo"] }] });
+    expect(() => resolveServers({ baseDir, env: {} })).toThrow(/sólo aplican a servidores locales/);
+  });
+
+  it("rechaza headers en un servidor local, porque no aplican", () => {
+    writeConfig({ servers: [{ name: "local", command: "npx", headers: { A: "b" } }] });
+    expect(() => resolveServers({ baseDir, env: {} })).toThrow(/sólo aplica a servidores remotos/);
+  });
+
+  it("permite mezclar un servidor local y uno remoto", () => {
+    fakeBinary();
+    writeConfig({
+      servers: [
+        { name: "local", command: "./servidor" },
+        { name: "remoto", url: "https://x.com/mcp" },
+      ],
+    });
+
+    const resolved = resolveServers({ baseDir, env: {} });
+    expect(resolved.servers).toHaveLength(2);
+    expect(resolved.servers[0]!.command).toBeDefined();
+    expect(resolved.servers[1]!.url).toBeDefined();
+  });
+});

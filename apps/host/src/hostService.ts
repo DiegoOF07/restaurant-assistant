@@ -1,7 +1,7 @@
 import { ConversationLoop, Session } from "@restaurant/conversation";
 import type { ConfirmationHandler, ConversationEvent, ToolRunner, TurnResult } from "@restaurant/conversation";
 import type { LLMProvider, ToolSpec } from "@restaurant/llm-provider";
-import { McpClient } from "@restaurant/mcp-client";
+import { McpClient, type McpLogEvent } from "@restaurant/mcp-client";
 
 import { McpLogger } from "./mcpLogger.js";
 import { MultiServerToolRunner } from "./multiServerToolRunner.js";
@@ -73,10 +73,22 @@ export class HostService {
     const namedServers: Array<{ name: string; toolRunner: ToolRunner }> = [];
 
     for (const serverConfig of config.servers) {
-      const client = McpClient.overStdio(
-        { command: serverConfig.command, args: serverConfig.args, env: serverConfig.env },
-        { onEvent: (event) => logger.recordMcpEvent(sessionContext.current, serverConfig.name, event) },
-      );
+      const clientOptions = {
+        onEvent: (event: McpLogEvent) => logger.recordMcpEvent(sessionContext.current, serverConfig.name, event),
+      };
+
+      // Único punto del host donde importa si el servidor es local o remoto. De acá en
+      // adelante ambos son un ToolRunner más.
+      const client = serverConfig.url
+        ? McpClient.overHttp(
+            { url: serverConfig.url, ...(serverConfig.headers ? { headers: serverConfig.headers } : {}) },
+            clientOptions,
+          )
+        : McpClient.overStdio(
+            { command: serverConfig.command!, args: serverConfig.args, env: serverConfig.env },
+            clientOptions,
+          );
+
       await client.initialize();
       mcpClients.push(client);
       namedServers.push({ name: serverConfig.name, toolRunner: client });

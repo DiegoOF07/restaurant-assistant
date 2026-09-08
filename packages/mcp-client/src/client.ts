@@ -1,4 +1,5 @@
 import { JsonRpcClient, type JsonRpcClientOptions } from "./jsonrpcClient.js";
+import { HttpTransport, type HttpTransportOptions } from "./httpTransport.js";
 import { StdioTransport, type StdioTransportOptions } from "./stdioTransport.js";
 import type { Transport } from "./transport.js";
 import {
@@ -41,6 +42,16 @@ export class McpClient {
   /** Construye un cliente sobre el transporte stdio, lanzando el servidor como subproceso. */
   static overStdio(stdioOptions: StdioTransportOptions, clientOptions: McpClientOptions = {}): McpClient {
     return new McpClient(new StdioTransport(stdioOptions), clientOptions);
+  }
+
+  /**
+   * Construye un cliente contra un servidor MCP remoto por HTTP.
+   *
+   * Sólo cambia el transporte: el handshake, la negociación de versión y las llamadas a
+   * herramientas son exactamente los mismos que por stdio.
+   */
+  static overHttp(httpOptions: HttpTransportOptions, clientOptions: McpClientOptions = {}): McpClient {
+    return new McpClient(new HttpTransport(httpOptions), clientOptions);
   }
 
   /** Construye un cliente sobre un Transport ya existente (útil para pruebas u otros transportes). */

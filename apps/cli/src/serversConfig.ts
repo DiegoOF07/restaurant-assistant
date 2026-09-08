@@ -11,12 +11,19 @@ import { ConfigError } from "./config.js";
 /** Nombre por defecto del archivo, buscado en la raíz del paquete del CLI. */
 export const DEFAULT_CONFIG_FILENAME = "mcp.servers.json";
 
-/** Una entrada del archivo de configuración, tal como se escribe en el JSON. */
+/**
+ * Una entrada del archivo de configuración, tal como se escribe en el JSON.
+ *
+ * Lleva `command` (servidor local, lanzado por stdio) o `url` (servidor remoto por HTTP),
+ * nunca ambos: son dos maneras excluyentes de alcanzar un servidor.
+ */
 export interface ServerFileEntry {
   name: string;
-  command: string;
+  command?: string;
   args?: string[];
   env?: Record<string, string>;
+  url?: string;
+  headers?: Record<string, string>;
   enabled?: boolean;
   description?: string;
 }
@@ -106,8 +113,20 @@ function fromFile(filePath: string, defaultEnv: Record<string, string>): Resolve
       return;
     }
 
-    const command = resolveCommand(expand(entry.command, where), configDir);
-    assertCommandIsUsable(command, entry.command, entry.name, configDir);
+    if (entry.url) {
+      // A un servidor remoto NO se le inyecta la identidad: por HTTP el servidor no puede
+      // confiar en algo que el cliente elige, así que deriva el rol del token. Mandar
+      // MCP_USER_ROLE acá daría la falsa impresión de que sirve para algo.
+      servers.push({
+        name: entry.name,
+        url: expand(entry.url, where),
+        ...(entry.headers ? { headers: expandRecord(entry.headers, where) } : {}),
+      });
+      return;
+    }
+
+    const command = resolveCommand(expand(entry.command!, where), configDir);
+    assertCommandIsUsable(command, entry.command!, entry.name, configDir);
 
     servers.push({
       name: entry.name,
@@ -164,8 +183,34 @@ function validateEntry(entry: ServerFileEntry, where: string): void {
   if (typeof entry.name !== "string" || entry.name.trim() === "") {
     throw new ConfigError(`${where}: falta "name" (texto no vacío).`);
   }
-  if (typeof entry.command !== "string" || entry.command.trim() === "") {
-    throw new ConfigError(`${where} ("${entry.name}"): falta "command" (ruta al binario o comando en el PATH).`);
+  const hasCommand = typeof entry.command === "string" && entry.command.trim() !== "";
+  const hasUrl = typeof entry.url === "string" && entry.url.trim() !== "";
+
+  if (hasCommand && hasUrl) {
+    throw new ConfigError(
+      `${where} ("${entry.name}"): tiene "command" y "url" a la vez. Son excluyentes: ` +
+        `"command" lanza un servidor local por stdio, "url" contacta uno remoto por HTTP.`,
+    );
+  }
+  if (!hasCommand && !hasUrl) {
+    throw new ConfigError(
+      `${where} ("${entry.name}"): falta "command" (ruta al binario o comando del PATH) ` +
+        `o "url" (endpoint MCP de un servidor remoto).`,
+    );
+  }
+  if (hasUrl) {
+    assertUsableUrl(entry.url!, entry.name, where);
+    if (entry.args !== undefined || entry.env !== undefined) {
+      throw new ConfigError(
+        `${where} ("${entry.name}"): "args" y "env" sólo aplican a servidores locales. ` +
+          `Para uno remoto, usa "headers".`,
+      );
+    }
+  }
+  if (hasCommand && entry.headers !== undefined) {
+    throw new ConfigError(
+      `${where} ("${entry.name}"): "headers" sólo aplica a servidores remotos ("url").`,
+    );
   }
   if (entry.args !== undefined) {
     if (!Array.isArray(entry.args) || entry.args.some((a) => typeof a !== "string")) {
@@ -179,6 +224,15 @@ function validateEntry(entry: ServerFileEntry, where: string): void {
       Object.values(entry.env).some((v) => typeof v !== "string");
     if (invalid) {
       throw new ConfigError(`${where} ("${entry.name}"): "env" debe ser un objeto de texto a texto.`);
+    }
+  }
+  if (entry.headers !== undefined) {
+    const invalid =
+      typeof entry.headers !== "object" ||
+      entry.headers === null ||
+      Object.values(entry.headers).some((v) => typeof v !== "string");
+    if (invalid) {
+      throw new ConfigError(`${where} ("${entry.name}"): "headers" debe ser un objeto de texto a texto.`);
     }
   }
   if (entry.enabled !== undefined && typeof entry.enabled !== "boolean") {
@@ -278,5 +332,38 @@ export function assertCommandIsUsable(
           `Corrígelo con: chmod +x "${resolvedPath}"`,
       );
     }
+  }
+}
+
+/**
+ * Valida la URL de un servidor remoto antes de intentar hablarle.
+ *
+ * Se avisa (sin bloquear) cuando se usa http:// contra un host que no es local: el token de
+ * autenticación viajaría en claro y cualquiera en la misma red podría leerlo. No se prohíbe
+ * porque en una demo de clase entre dos laptops es una elección legítima.
+ */
+function assertUsableUrl(rawUrl: string, serverName: string, where: string): void {
+  let parsed: URL;
+  try {
+    parsed = new URL(rawUrl);
+  } catch {
+    throw new ConfigError(
+      `${where} ("${serverName}"): "url" no es válida: ${rawUrl}\n` +
+        `Debe ser una URL completa, por ejemplo https://mi-servidor.com/mcp`,
+    );
+  }
+
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+    throw new ConfigError(
+      `${where} ("${serverName}"): "url" usa el esquema ${parsed.protocol}, y sólo se admiten http y https.`,
+    );
+  }
+
+  const isLocal = parsed.hostname === "localhost" || parsed.hostname === "127.0.0.1" || parsed.hostname === "::1";
+  if (parsed.protocol === "http:" && !isLocal) {
+    console.warn(
+      `[AVISO] El servidor "${serverName}" usa http:// contra un host remoto (${parsed.hostname}). ` +
+        `Las credenciales viajarán sin cifrar. Usa https:// cuando sea posible.`,
+    );
   }
 }
