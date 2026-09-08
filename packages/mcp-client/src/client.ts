@@ -15,6 +15,8 @@ import {
 /** Opciones del cliente; hereda del transporte JSON-RPC el timeout y el listener de eventos. */
 export interface McpClientOptions extends JsonRpcClientOptions {
   clientInfo?: McpServerInfo;
+  /** Recibe el stderr del servidor. Suele traer la causa real de un arranque fallido. */
+  onDiagnostic?: (line: string) => void;
 }
 
 /**
@@ -35,6 +37,7 @@ export class McpClient {
   ) {
     this.rpc = new JsonRpcClient(transport, options);
     this.clientInfo = options.clientInfo ?? { name: "restaurant-assistant-host", version: "0.1.0" };
+    if (options.onDiagnostic) transport.onDiagnostic(options.onDiagnostic);
   }
 
   private readonly clientInfo: McpServerInfo;
@@ -64,11 +67,11 @@ export class McpClient {
    * notifications/initialized. Debe llamarse antes de listTools/callTool
    */
   async initialize(): Promise<InitializeResult> {
-    const result = await this.rpc.request<InitializeResult>("initialize", {
-      protocolVersion: MCP_PROTOCOL_VERSION,
-      capabilities: {},
-      clientInfo: this.clientInfo,
-    });
+    const result = await this.rpc.request<InitializeResult>(
+      "initialize",
+      { protocolVersion: MCP_PROTOCOL_VERSION, capabilities: {}, clientInfo: this.clientInfo },
+      this.rpc.handshakeTimeoutMs,
+    );
 
     // El servidor puede responder con una versión distinta a la pedida: así se negocia.
     // Si no la hablamos, la especificación dice que el cliente debe cortar la conexión —
@@ -88,10 +91,33 @@ export class McpClient {
     return result;
   }
 
+  /**
+   * Devuelve TODAS las herramientas, recorriendo las páginas si el servidor las parte.
+   * Quedarse con la primera dejaría herramientas invisibles y sin ningún error visible.
+   */
   async listTools(): Promise<ToolDefinition[]> {
     this.assertReady("listTools");
-    const result = await this.rpc.request<ListToolsResult>("tools/list");
-    return result.tools;
+
+    const tools: ToolDefinition[] = [];
+    const seenCursors = new Set<string>();
+    let cursor: string | undefined;
+
+    do {
+      const params = cursor === undefined ? undefined : { cursor };
+      const page = await this.rpc.request<ListToolsResult>("tools/list", params);
+      tools.push(...(page.tools ?? []));
+
+      cursor = page.nextCursor;
+      // Un servidor que repita cursor nos dejaría girando para siempre.
+      if (cursor !== undefined) {
+        if (seenCursors.has(cursor)) {
+          throw new Error(`el servidor repitió el cursor de paginación ${cursor}; se corta para no ciclar`);
+        }
+        seenCursors.add(cursor);
+      }
+    } while (cursor !== undefined);
+
+    return tools;
   }
 
   /**

@@ -5,7 +5,8 @@
 /** Una herramienta disponible, en el formato que cualquier proveedor puede traducir a su propio esquema de "tools" */
 export interface ToolSpec {
   name: string;
-  description: string;
+  /** Opcional: la especificación de MCP no la exige. */
+  description?: string;
   inputSchema: Record<string, unknown>;
 }
 

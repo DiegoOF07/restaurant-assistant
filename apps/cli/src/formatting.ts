@@ -42,7 +42,7 @@ export function formatWelcomeBanner(info: BannerInfo): string {
     for (const tool of info.tools) {
       const origin = multipleServers ? info.serverForTool?.(tool.name) : undefined;
       lines.push(`  ${cyan(symbols.bullet)} ${bold(tool.name)}${origin ? dim(` · ${origin}`) : ""}`);
-      lines.push(`    ${dim(truncate(tool.description, 200))}`);
+      lines.push(`    ${dim(truncate(describe(tool), 200))}`);
     }
   }
 
@@ -80,13 +80,18 @@ export function formatToolList(tools: ToolSpec[], serverForTool?: (name: string)
       const required = requiredParams(tool);
       return [
         `  ${cyan(symbols.bullet)} ${bold(tool.name)}${origin ? dim(` · ${origin}`) : ""}`,
-        `    ${dim(tool.description)}`,
+        `    ${dim(describe(tool))}`,
         required.length > 0 ? `    ${gray(`parámetros: ${required.join(", ")}`)}` : "",
       ]
         .filter(Boolean)
         .join("\n");
     })
     .join("\n");
+}
+
+/** La descripción es opcional en MCP: sin esto, un servidor que la omita rompe la interfaz. */
+function describe(tool: ToolSpec): string {
+  return tool.description?.trim() || "(sin descripción)";
 }
 
 function requiredParams(tool: ToolSpec): string[] {

@@ -1,7 +1,7 @@
 import * as path from "node:path";
 import * as readline from "node:readline";
 import { fileURLToPath } from "node:url";
-import { HostService } from "@restaurant/host";
+import { HostService, McpServerStartupError } from "@restaurant/host";
 import { AnthropicProvider, type LLMProvider } from "@restaurant/llm-provider";
 import { loadDotEnv } from "./dotenv.js";
 import { loadConfig, ConfigError } from "./config.js";
@@ -97,10 +97,15 @@ async function main(): Promise<void> {
   } catch (err) {
     spinner.stop();
     const message = err instanceof Error ? err.message : String(err);
+    const failing =
+      err instanceof McpServerStartupError
+        ? resolved.servers.filter((s) => s.name === err.serverName)
+        : resolved.servers;
+
     console.error(
       formatError(
         `No se pudo iniciar alguno de los servidores MCP configurados.\n\n` +
-          `  Servidores: ${resolved.servers.map((s) => `${s.name} -> ${s.command}`).join("\n              ")}\n` +
+          `  Servidores: ${failing.map((s) => `${s.name} -> ${s.url ?? s.command}`).join("\n              ")}\n` +
           `  Configuración: ${describeSource(resolved)}\n\n` +
           `  Detalle: ${message}`,
       ),

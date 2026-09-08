@@ -66,6 +66,9 @@ nothing at all.
 - **Two transports behind one interface**: `stdio` (spawns a local subprocess) and
   **Streamable HTTP** (talks to a remote server, with sessions, bearer tokens and network
   errors reported against the request that caused them). `McpClient` is identical for both.
+- **Interoperability with third-party servers**: protocol versions `2025-06-18` and
+  `2025-03-26`, paginated `tools/list`, tools without a `description`, a longer handshake
+  timeout for cold `npx` starts, and the server's stderr surfaced when a startup fails.
 - **Multi-server host**: any number of MCP servers merged into one tool catalog, with duplicate
   tool names rejected up front.
 - **Declarative server configuration** in a JSON file — adding a server never requires touching
@@ -200,6 +203,23 @@ suggest it does something, when it does not.
 The CLI warns when a remote `url` uses `http://` instead of `https://`, because the token
 would travel in the clear. It warns rather than blocks: between two laptops on a classroom
 network it is a legitimate choice.
+
+
+### Where to keep third-party binaries
+
+Drop binaries someone gave you into **`apps/cli/servers/`** and reference them with a short
+path, since paths resolve relative to the config file:
+
+```json
+{ "name": "servidor-de-juan", "command": "./servers/juan-mcp-server" }
+```
+
+The folder's contents are git-ignored; its `README.md` is versioned so anyone cloning the
+repo knows what belongs there.
+
+**Only for binaries you were handed.** A server you build yourself should point at its build
+output (`../../../restaurant-mcp-server/bin/...`) so a rebuild takes effect immediately — a
+manual copy goes stale silently, which is far harder to diagnose than a missing file.
 
 ### Where configuration comes from
 

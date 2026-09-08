@@ -51,6 +51,11 @@ servidores como un único catálogo de herramientas. Si dos declaran una herrami
 mismo nombre, **falla explícitamente** en vez de dejar que una gane en silencio: un conflicto
 silencioso enviaría llamadas al servidor equivocado.
 
+**El cliente tolera servidores ajenos.** Habla las versiones de protocolo `2025-06-18` y
+`2025-03-26`, recorre `tools/list` paginado, acepta herramientas sin `description`, da al
+handshake más tiempo que a una llamada normal (por los arranques en frío de `npx`) y muestra
+el stderr del servidor cuando el arranque falla — que suele ser donde está la causa real.
+
 **La confirmación no es lo mismo que el permiso.** El CLI pregunta antes de una operación
 sensible, pero el servidor valida el rol por su cuenta. El host es código cliente; un cliente
 modificado podría no preguntar nada.
@@ -175,6 +180,24 @@ la falsa impresión de que sirve para algo.
 El CLI avisa cuando una `url` remota usa `http://` en vez de `https://`, porque el token
 viajaría en claro. Avisa en vez de bloquear: entre dos laptops en la red del salón es una
 elección legítima.
+
+
+### Dónde guardar binarios de terceros
+
+Los binarios que te pasen van en **`apps/cli/servers/`**, y se referencian con una ruta corta
+porque las rutas se resuelven respecto al archivo de configuración:
+
+```json
+{ "name": "servidor-de-juan", "command": "./servers/juan-mcp-server" }
+```
+
+El contenido de la carpeta está en `.gitignore`; su `README.md` sí se versiona, para que
+quien clone el repositorio sepa qué va ahí.
+
+**Sólo para binarios que te dieron.** Un servidor que compilás vos debe apuntar al resultado
+del build (`../../../restaurant-mcp-server/bin/...`) para que recompilar tenga efecto al
+instante — una copia manual se queda vieja en silencio, y eso cuesta mucho más de
+diagnosticar que un archivo que falta.
 
 ### De dónde sale la configuración
 

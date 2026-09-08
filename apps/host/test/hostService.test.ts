@@ -1,7 +1,9 @@
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect, afterEach, vi } from "vitest";
 import { MockProvider } from "@restaurant/llm-provider";
 import type { ToolExecutionResult, ToolRunner } from "@restaurant/conversation";
 import type { ToolSpec } from "@restaurant/llm-provider";
+
+import { McpClient } from "@restaurant/mcp-client";
 
 import { HostService } from "../src/hostService.js";
 
@@ -119,5 +121,59 @@ describe("HostService", () => {
     await host.sendMessage("session-1", "descuenta el queso");
 
     expect(toolRunner.calls).toHaveLength(0);
+  });
+});
+describe("HostService.create: fallo al arrancar", () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it("cierra los servidores ya conectados cuando uno falla", async () => {
+    // Sin este cierre, los subprocesos ya lanzados mantienen vivo el bucle de eventos y el
+    // CLI se cuelga en vez de terminar con el error.
+    const cerrados: string[] = [];
+
+    vi.spyOn(McpClient, "overStdio").mockImplementation(((options: { command: string }) => ({
+      initialize: async () => {
+        if (options.command === "malo") throw new Error("terminó inesperadamente");
+        return {};
+      },
+      close: async () => {
+        cerrados.push(options.command);
+      },
+      listTools: async () => [],
+      callTool: async () => ({ content: [] }),
+    })) as never);
+
+    await expect(
+      HostService.create({
+        provider: new MockProvider([]),
+        servers: [
+          { name: "bueno", command: "bueno" },
+          { name: "malo", command: "malo" },
+        ],
+      }),
+    ).rejects.toThrow(/"malo" no pudo iniciarse/);
+
+    expect(cerrados).toContain("bueno");
+  });
+
+  it("adjunta el stderr del servidor al error", async () => {
+    vi.spyOn(McpClient, "overStdio").mockImplementation(((_o: unknown, clientOptions: any) => {
+      clientOptions.onDiagnostic("falta la variable API_KEY");
+      return {
+        initialize: async () => {
+          throw new Error("terminó inesperadamente");
+        },
+        close: async () => {},
+        listTools: async () => [],
+        callTool: async () => ({ content: [] }),
+      };
+    }) as never);
+
+    await expect(
+      HostService.create({
+        provider: new MockProvider([]),
+        servers: [{ name: "ruidoso", command: "x" }],
+      }),
+    ).rejects.toThrow(/falta la variable API_KEY/);
   });
 });

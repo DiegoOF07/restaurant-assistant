@@ -6,6 +6,7 @@ import { McpClient, type McpLogEvent } from "@restaurant/mcp-client";
 import { McpLogger } from "./mcpLogger.js";
 import { MultiServerToolRunner } from "./multiServerToolRunner.js";
 import { SessionManager } from "./sessionManager.js";
+import { McpServerStartupError } from "./startupError.js";
 import type { LogEntry, McpServerConfig } from "./types.js";
 
 /** Construcción directa, con un ToolRunner ya armado. Para pruebas; en producción se usa create(). */
@@ -17,6 +18,9 @@ export interface HostServiceOptions {
   maxIterations?: number;
   systemPrompt?: string;
 }
+
+/** Cuántas líneas de stderr se conservan por servidor. */
+const MAX_DIAGNOSTIC_LINES = 20;
 
 /** Rastrea qué sessionId está "en vuelo" en este momento, para poder atribuirle los eventos de mcp-client */
 class SessionContext {
@@ -73,8 +77,14 @@ export class HostService {
     const namedServers: Array<{ name: string; toolRunner: ToolRunner }> = [];
 
     for (const serverConfig of config.servers) {
+      // Se guardan las últimas líneas de stderr para poder explicar un arranque fallido.
+      const diagnostics: string[] = [];
       const clientOptions = {
         onEvent: (event: McpLogEvent) => logger.recordMcpEvent(sessionContext.current, serverConfig.name, event),
+        onDiagnostic: (line: string) => {
+          diagnostics.push(line);
+          if (diagnostics.length > MAX_DIAGNOSTIC_LINES) diagnostics.shift();
+        },
       };
 
       // Único punto del host donde importa si el servidor es local o remoto. De acá en
@@ -89,8 +99,17 @@ export class HostService {
             clientOptions,
           );
 
-      await client.initialize();
       mcpClients.push(client);
+
+      try {
+        await client.initialize();
+      } catch (err) {
+        // Sin esto, los subprocesos ya lanzados siguen vivos y mantienen abierto el bucle de
+        // eventos: el CLI se queda colgado en vez de terminar con el error.
+        await Promise.allSettled(mcpClients.map((c) => c.close()));
+        throw new McpServerStartupError(serverConfig.name, err instanceof Error ? err : new Error(String(err)), diagnostics);
+      }
+
       namedServers.push({ name: serverConfig.name, toolRunner: client });
     }
 

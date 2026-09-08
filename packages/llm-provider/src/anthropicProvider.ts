@@ -171,7 +171,8 @@ export class AnthropicProvider implements LLMProvider {
 export function toAnthropicTools(tools: ToolSpec[]): Anthropic.Beta.BetaTool[] {
   return tools.map((tool) => ({
     name: tool.name,
-    description: tool.description,
+    // Se omite si el servidor no la dio, en vez de mandar undefined.
+    ...(tool.description ? { description: tool.description } : {}),
     input_schema: tool.inputSchema as Anthropic.Beta.BetaTool.InputSchema,
   }));
 }

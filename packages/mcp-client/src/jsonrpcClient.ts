@@ -14,6 +14,11 @@ interface PendingRequest {
 export interface JsonRpcClientOptions {
   /** Milisegundos a esperar una respuesta antes de rechazar */
   requestTimeoutMs?: number;
+  /**
+   * Timeout del handshake. Es mayor porque `npx` o `uvx` pueden descargar el servidor la
+   * primera vez, y eso se pasa de largo del timeout normal.
+   */
+  handshakeTimeoutMs?: number;
   onEvent?: McpEventListener;
 }
 
@@ -25,6 +30,7 @@ export class JsonRpcClient {
   private nextId = 1;
   private readonly pending = new Map<JsonRpcId, PendingRequest>();
   private readonly requestTimeoutMs: number;
+  readonly handshakeTimeoutMs: number;
   private readonly onEvent?: McpEventListener;
   private closed = false;
 
@@ -33,6 +39,7 @@ export class JsonRpcClient {
     options: JsonRpcClientOptions = {},
   ) {
     this.requestTimeoutMs = options.requestTimeoutMs ?? 15_000;
+    this.handshakeTimeoutMs = options.handshakeTimeoutMs ?? 60_000;
     this.onEvent = options.onEvent;
 
     transport.onMessage((raw) => this.handleIncoming(raw));
@@ -40,18 +47,19 @@ export class JsonRpcClient {
   }
 
   /** Envía una solicitud y devuelve una Promise que se resuelve con result. */
-  request<T>(method: string, params?: unknown): Promise<T> {
+  request<T>(method: string, params?: unknown, timeoutMs?: number): Promise<T> {
     if (this.closed) {
       return Promise.reject(new TransportClosedError(`no se puede enviar "${method}": transporte cerrado`));
     }
 
     const id = this.nextId++;
+    const timeout = timeoutMs ?? this.requestTimeoutMs;
 
     return new Promise<T>((resolve, reject) => {
       const timer = setTimeout(() => {
         this.pending.delete(id);
-        reject(new RequestTimeoutError(method, id, this.requestTimeoutMs));
-      }, this.requestTimeoutMs);
+        reject(new RequestTimeoutError(method, id, timeout));
+      }, timeout);
 
       this.pending.set(id, {
         method,

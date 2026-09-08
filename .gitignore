@@ -145,3 +145,15 @@ vite.config.ts.timestamp-*
 # Configuración local de servidores MCP (rutas propias de cada máquina).
 # La plantilla versionada es mcp.servers.json.example.
 apps/cli/mcp.servers.json
+
+# Binarios de servidores MCP de terceros. Se ignora el CONTENIDO, no la carpeta: el README
+# versionado documenta qué va ahí, que si no quien clone el repo se encuentra una ruta rota
+# sin ninguna pista.
+apps/cli/servers/*
+!apps/cli/servers/README.md
+
+# Bases SQLite. Un servidor MCP escribe su base junto a su binario, así que sin esto una
+# base de un servidor copiado en el repo acabaría subida.
+*.db
+*.db-wal
+*.db-shm

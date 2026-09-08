@@ -19,8 +19,18 @@
     },
 
     {
-      "name": "servidor-de-companero",
-      "description": "MCP de un compañero de clase. Si es local usa 'command'; si lo tiene desplegado, 'url'.",
+      "name": "companero-binario",
+      "description": "MCP de un compañero que te pasó el binario. Copialo en servers/ (ver servers/README.md).",
+      "enabled": false,
+      "command": "./servers/companero-mcp-server",
+      "env": {
+        "API_TOKEN": "${TOKEN_DEL_COMPANERO}"
+      }
+    },
+
+    {
+      "name": "companero-remoto",
+      "description": "MCP de un compañero que ya lo tiene desplegado. Acá no se copia nada.",
       "enabled": false,
       "url": "http://192.168.1.50:8080/mcp",
       "headers": {

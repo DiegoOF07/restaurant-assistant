@@ -25,7 +25,7 @@ export const MCP_PROTOCOL_VERSION = "2025-06-18";
  * El servidor puede responder a `initialize` con una versión distinta a la que pedimos;
  * si está en esta lista, se continúa con ella.
  */
-export const SUPPORTED_PROTOCOL_VERSIONS: readonly string[] = [MCP_PROTOCOL_VERSION];
+export const SUPPORTED_PROTOCOL_VERSIONS: readonly string[] = [MCP_PROTOCOL_VERSION, "2025-03-26"];
 
 /** Identificación de un extremo de la conexión; la usan tanto el servidor como el cliente. */
 export interface McpServerInfo {
@@ -51,14 +51,16 @@ export interface InitializeResult {
 
 export interface ToolDefinition {
   name: string;
-  description: string;
+  /** Opcional en la especificación: hay servidores que no la mandan. */
+  description?: string;
   inputSchema: Record<string, unknown>;
   outputSchema?: Record<string, unknown>;
 }
 
-/** Respuesta de tools/list: el catálogo completo, sin paginación. */
+/** Respuesta de tools/list. Con nextCursor hay más páginas por pedir. */
 export interface ListToolsResult {
   tools: ToolDefinition[];
+  nextCursor?: string;
 }
 
 /** Bloque de contenido legible de un resultado. Sólo se manejan bloques de texto. */
