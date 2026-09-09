@@ -1,6 +1,7 @@
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { createInterface } from "node:readline";
 import type { Transport } from "./transport.js";
+import { planSpawn } from "./windowsCommand.js";
 
 /**
  * Cómo lanzar el subproceso del servidor. `env` se FUSIONA con el entorno del proceso
@@ -22,11 +23,16 @@ export class StdioTransport implements Transport {
   private closed = false;
 
   constructor(options: StdioTransportOptions) {
-    this.child = spawn(options.command, options.args ?? [], {
+    // En Windows un comando del PATH puede ser un lanzador .cmd (npx, uvx), que sólo
+    // arranca a través de cmd.exe. Ver windowsCommand.ts.
+    const plan = planSpawn(options.command, options.args ?? []);
+
+    this.child = spawn(plan.command, plan.args, {
       cwd: options.cwd,
       env: { ...process.env, ...options.env },
       stdio: ["pipe", "pipe", "pipe"],
-    });
+      shell: plan.useShell,
+    }) as ChildProcessWithoutNullStreams;
 
     createInterface({ input: this.child.stdout }).on("line", (line) => {
       if (line.trim().length === 0) return; // líneas en blanco se ignoran

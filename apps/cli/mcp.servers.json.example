@@ -39,19 +39,37 @@
     },
 
     {
+      "name": "finanzas-pyme",
+      "description": "MCP de un compañero (Python, stdio): finanzas de una PYME. Requiere `pip install -e .` en su venv; FINANZAS_PYTHON apunta al python de ESE venv (ver .env.example).",
+      "enabled": false,
+      "command": "${FINANZAS_PYTHON}",
+      "args": ["-m", "finanzas_mcp.server"],
+      "env": {}
+    },
+
+    {
+      "name": "design-system",
+      "description": "MCP de un compañero (Python, stdio): tokens de Design System, consistencia y contraste WCAG. Se lanza por script, así que la ruta del repo va en DESIGN_SYSTEM_HOME.",
+      "enabled": false,
+      "command": "${DESIGN_SYSTEM_PYTHON}",
+      "args": ["${DESIGN_SYSTEM_HOME}/app/server.py"],
+      "env": {}
+    },
+
+    {
       "name": "filesystem",
-      "description": "Servidor MCP oficial de sistema de archivos. Requiere Node y acceso a red la primera vez.",
+      "description": "Filesystem MCP server oficial. Requiere Node y acceso a red la primera vez. Sólo puede tocar los directorios que recibe como argumento: apúntalo a un sandbox, no al proyecto.",
       "enabled": false,
       "command": "npx",
-      "args": ["-y", "@modelcontextprotocol/server-filesystem", "/ruta/que/quieras/exponer"]
+      "args": ["-y", "@modelcontextprotocol/server-filesystem", "${SANDBOX_DIR}"]
     },
 
     {
       "name": "git",
-      "description": "Servidor MCP oficial de Git. Requiere uv/uvx instalado.",
+      "description": "Git MCP server oficial. Requiere uv/uvx instalado. Trabaja sobre un repositorio local: status, diff, add, commit, ramas. No hace push.",
       "enabled": false,
       "command": "uvx",
-      "args": ["mcp-server-git", "--repository", "/ruta/al/repositorio"]
+      "args": ["mcp-server-git", "--repository", "${SANDBOX_DIR}"]
     }
   ]
 }

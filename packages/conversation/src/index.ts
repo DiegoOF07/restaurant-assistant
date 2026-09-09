@@ -1,4 +1,5 @@
 export { Session } from "./session.js";
+export { DEFAULT_TOOLS_REQUIRING_CONFIRMATION } from "./sensitiveTools.js";
 export { ConversationLoop, type ConversationLoopOptions } from "./loop.js";
 export {
   MaxIterationsExceededError,

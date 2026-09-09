@@ -9,6 +9,7 @@ import {
   SYSTEM_PROMPT,
   HeuristicDemoProvider,
 } from "@restaurant/cli";
+import { DEFAULT_TOOLS_REQUIRING_CONFIRMATION } from "@restaurant/conversation";
 import { AnthropicProvider, type LLMProvider } from "@restaurant/llm-provider";
 import { AssistantSession } from "./assistantSession.js";
 import { EventBus } from "./eventBus.js";
@@ -80,7 +81,7 @@ async function main(): Promise<void> {
     servers: resolved.servers,
     createProvider,
     systemPrompt: SYSTEM_PROMPT,
-    toolsRequiringConfirmation: ["adjust_inventory"],
+    toolsRequiringConfirmation: [...DEFAULT_TOOLS_REQUIRING_CONFIRMATION],
     maxIterations: config.maxIterations,
     userId: config.userId,
     initialRole: config.userRole,

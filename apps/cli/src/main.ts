@@ -1,6 +1,7 @@
 import * as path from "node:path";
 import * as readline from "node:readline";
 import { fileURLToPath } from "node:url";
+import { DEFAULT_TOOLS_REQUIRING_CONFIRMATION } from "@restaurant/conversation";
 import { HostService, McpServerStartupError } from "@restaurant/host";
 import { AnthropicProvider, type LLMProvider } from "@restaurant/llm-provider";
 import { loadDotEnv } from "./dotenv.js";
@@ -89,7 +90,7 @@ async function main(): Promise<void> {
       provider,
       servers: resolved.servers,
       systemPrompt: SYSTEM_PROMPT,
-      toolsRequiringConfirmation: ["adjust_inventory"],
+      toolsRequiringConfirmation: DEFAULT_TOOLS_REQUIRING_CONFIRMATION,
       requestConfirmation: createLineSourceConfirmationHandler(rl, lines),
       maxIterations: config.maxIterations,
     });

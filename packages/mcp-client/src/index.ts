@@ -1,5 +1,6 @@
 export { McpClient, type McpClientOptions } from "./client.js";
 export { StdioTransport, type StdioTransportOptions } from "./stdioTransport.js";
+export { planSpawn, resolveWindowsExecutable, type WindowsSpawnPlan } from "./windowsCommand.js";
 export { HttpTransport, type HttpTransportOptions } from "./httpTransport.js";
 export type { Transport } from "./transport.js";
 export { JsonRpcClient, type JsonRpcClientOptions } from "./jsonrpcClient.js";
