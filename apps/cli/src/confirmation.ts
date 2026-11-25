@@ -1,8 +1,9 @@
 import type { Interface as ReadlineInterface } from "node:readline";
 import type { ConfirmationHandler } from "@restaurant/conversation";
+import { describeConfirmation, type Names } from "@restaurant/presentation";
 import type { LineSource } from "./lineSource.js";
 import { safePrompt } from "./promptUtils.js";
-import { bold, box, dim, gray, green, red, symbols, yellow } from "./theme.js";
+import { bold, box, dim, green, red, symbols, yellow } from "./theme.js";
 
 /**
  * Implementa ConfirmationHandler preguntándole al usuario por terminal.
@@ -10,24 +11,19 @@ import { bold, box, dim, gray, green, red, symbols, yellow } from "./theme.js";
 export function createLineSourceConfirmationHandler(
   rl: ReadlineInterface,
   lines: LineSource,
+  names: () => Names = () => new Map(),
 ): ConfirmationHandler {
   return async (toolCall) => {
-    const args = Object.entries(toolCall.arguments).map(
-      ([key, value]) => `  ${gray(key.padEnd(16))} ${bold(formatValue(value))}`,
-    );
-
+    // El texto sale de los argumentos reales: lo que se confirma es lo que se ejecuta
+    const text = describeConfirmation(toolCall.name, toolCall.arguments, names());
     console.log(
-      `\n${box(
-        [
-          `${bold("Se requiere tu confirmación")} ${dim("— esta operación modifica datos")}`,
-          "",
-          `  ${gray("herramienta".padEnd(16))} ${bold(toolCall.name)}`,
-          ...args,
-        ],
-        { title: `${symbols.warn} Operación sensible`, color: yellow },
-      )}\n`,
+      `\n${box([bold(text.question), ...text.details.map((d) => dim(d))], {
+        title: `${symbols.warn} Confirmar`,
+        color: red,
+        width: 56,
+      })}`,
     );
-
+    console.log(dim("  /detalles después de responder muestra los argumentos técnicos.\n"));
     rl.setPrompt(`${yellow("¿Confirmas?")} ${dim("[s/N]")} `);
     safePrompt(rl);
 
@@ -43,8 +39,4 @@ export function createLineSourceConfirmationHandler(
     );
     return approved;
   };
-}
-
-function formatValue(value: unknown): string {
-  return typeof value === "string" ? value : JSON.stringify(value);
 }

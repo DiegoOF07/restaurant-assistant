@@ -5,8 +5,8 @@ describe("loadConfig", () => {
   it("aplica los valores por defecto con un entorno vacío", () => {
     const config = loadConfig({});
     expect(config.maxIterations).toBe(8);
-    // El rol menos privilegiado por defecto: el servidor deniega adjust_inventory.
-    expect(config.userRole).toBe("waiter");
+    // Cocina por defecto: las tres sugerencias de la demo funcionan al primer intento.
+    expect(config.userRole).toBe("cook");
     expect(config.userId).toBe("unspecified");
     expect(config.anthropicApiKey).toBeUndefined();
   });

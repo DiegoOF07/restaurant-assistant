@@ -8,12 +8,12 @@ import { loadDotEnv } from "./dotenv.js";
 import { loadConfig, ConfigError } from "./config.js";
 import { HeuristicDemoProvider } from "./demoProvider.js";
 import { createLineSourceConfirmationHandler } from "./confirmation.js";
-import { formatError, formatInfo, formatWarning } from "./formatting.js";
+import { formatError, formatInfo } from "./formatting.js";
 import { LineSource } from "./lineSource.js";
 import { runRepl } from "./repl.js";
 import { resolveServers, DEFAULT_CONFIG_FILENAME } from "./serversConfig.js";
 import { SYSTEM_PROMPT } from "./systemPrompt.js";
-import { bold, dim, Spinner } from "./theme.js";
+import { bold, Spinner } from "./theme.js";
 
 /** Raíz del paquete @restaurant/cli (dist/ o src/ -> ..) */
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -68,32 +68,25 @@ async function main(): Promise<void> {
       ...(config.anthropicModel ? { model: config.anthropicModel } : {}),
     });
   } else {
+    // El arranque ya dice "modelo: demostración"; cómo conectar un LLM real está en /ayuda y el README
     provider = new HeuristicDemoProvider();
-    console.log(
-      formatWarning(
-        "Sin ANTHROPIC_API_KEY: se usa el proveedor de demostración basado en palabras clave.",
-      ) + dim("\n  Define ANTHROPIC_API_KEY en apps/cli/.env para conectar un LLM real.\n"),
-    );
   }
 
-  if (resolved.disabled.length > 0) {
-    console.log(dim(`  Servidores desactivados en la configuración: ${resolved.disabled.join(", ")}`));
-  }
-
-  const spinner = new Spinner(
-    `conectando con ${resolved.servers.length} servidor(es) MCP...`,
-  ).start();
+  const spinner = new Spinner("conectando...").start();
 
   let host: HostService;
+  // El manejador de confirmación se crea antes que el host; lee sus nombres cuando pregunta
+  let hostRef: HostService | undefined;
   try {
     host = await HostService.create({
       provider,
       servers: resolved.servers,
       systemPrompt: SYSTEM_PROMPT,
       toolsRequiringConfirmation: DEFAULT_TOOLS_REQUIRING_CONFIRMATION,
-      requestConfirmation: createLineSourceConfirmationHandler(rl, lines),
+      requestConfirmation: createLineSourceConfirmationHandler(rl, lines, () => hostRef?.names() ?? new Map()),
       maxIterations: config.maxIterations,
     });
+    hostRef = host;
     spinner.stop();
   } catch (err) {
     spinner.stop();
@@ -131,7 +124,7 @@ async function main(): Promise<void> {
 
   try {
     await runRepl(rl, lines, host, {
-      banner: {
+      startup: {
         userRole: config.userRole,
         userId: config.userId,
         ...(config.anthropicModel
@@ -139,9 +132,10 @@ async function main(): Promise<void> {
           : config.anthropicApiKey
             ? { model: "por defecto" }
             : {}),
-        serverSource: describeSource(resolved),
         serverNames: resolved.servers.map((server) => server.name),
       },
+      serverSource: describeSource(resolved),
+      disabled: resolved.disabled,
     });
   } catch (err) {
     console.error(formatError(err instanceof Error ? err.message : String(err)));

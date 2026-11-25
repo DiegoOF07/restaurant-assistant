@@ -12,12 +12,13 @@ export { HeuristicDemoProvider } from "./demoProvider.js";
 export { createLineSourceConfirmationHandler } from "./confirmation.js";
 export { LineSource } from "./lineSource.js";
 export {
-  formatWelcomeBanner,
+  formatStartup,
+  renderSummary,
   formatLogEntry,
   formatToolList,
   formatHelp,
   formatError,
-  type BannerInfo,
+  type StartupInfo,
 } from "./formatting.js";
 export { box, colorEnabled, visibleWidth, wrapLine, Spinner } from "./theme.js";
 export { runRepl, SESSION_ID } from "./repl.js";

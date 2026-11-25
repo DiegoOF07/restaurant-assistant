@@ -114,6 +114,7 @@ function fromFile(filePath: string, defaultEnv: Record<string, string>): Resolve
     }
 
     if (entry.url) {
+      warnIfInsecure(expand(entry.url, where), entry.name);
       // A un servidor remoto NO se le inyecta la identidad: por HTTP el servidor no puede
       // confiar en algo que el cliente elige, así que deriva el rol del token. Mandar
       // MCP_USER_ROLE acá daría la falsa impresión de que sirve para algo.
@@ -359,6 +360,11 @@ function assertUsableUrl(rawUrl: string, serverName: string, where: string): voi
     );
   }
 
+}
+
+// Solo se avisa por servidores activos: uno desactivado no manda credenciales a ningún lado
+function warnIfInsecure(rawUrl: string, serverName: string): void {
+  const parsed = new URL(rawUrl);
   const isLocal = parsed.hostname === "localhost" || parsed.hostname === "127.0.0.1" || parsed.hostname === "::1";
   if (parsed.protocol === "http:" && !isLocal) {
     console.warn(

@@ -30,7 +30,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): CliConfig {
 
   // El rol se valida en el SERVIDOR; acá sólo se transporta. Si no se define, el servidor
   // aplica por su cuenta el rol menos privilegiado.
-  const userRole = env.MCP_USER_ROLE?.trim() || "waiter";
+  const userRole = env.MCP_USER_ROLE?.trim() || "cook";
   const userId = env.MCP_USER_ID?.trim() || "unspecified";
 
   const config: CliConfig = { maxIterations, userRole, userId };
