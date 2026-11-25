@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useMemo, useReducer } from "react";
 import { sendCommand, subscribeToEvents, type ServerEvent, type SessionState } from "./api.js";
+import type { ConfirmationText, Summary } from "../../server/src/types.js";
 import type { LogEntry } from "@restaurant/host";
+
+export type ToolStatus = "pendiente" | "esperando confirmación" | "ok" | "error" | "cancelada";
 
 /** Una entrada visible de la conversación. */
 export type Entry =
@@ -13,16 +16,23 @@ export type Entry =
       toolName: string;
       server?: string;
       args: Record<string, unknown>;
-      status: "pendiente" | "esperando confirmación" | "ok" | "error" | "cancelada";
+      status: ToolStatus;
+      /** Resultado ya en lenguaje de cocina. */
+      summary?: Summary;
+      /** Resultado crudo, para "Ver detalles". */
+      result?: unknown;
+      /** Mensaje técnico de un error de protocolo, solo para "Ver detalles". */
+      technicalError?: string;
     };
 
 export interface PendingConfirmation {
   requestId: string;
   toolName: string;
   args: Record<string, unknown>;
+  text: ConfirmationText;
 }
 
-interface State {
+export interface State {
   entries: Entry[];
   session?: SessionState;
   log: LogEntry[];
@@ -36,25 +46,27 @@ type Action =
   | { type: "user_message"; text: string }
   | { type: "connection"; connected: boolean };
 
-const initialState: State = { entries: [], log: [], busy: false, connected: false };
+export const initialState: State = { entries: [], log: [], busy: false, connected: false };
 
 let sequence = 0;
 const nextId = () => `e${++sequence}`;
 
-/** Marca la última llamada a una herramienta que siga abierta. */
-function updateLastTool(entries: Entry[], toolName: string, status: Extract<Entry, { kind: "tool" }>["status"]): Entry[] {
+type ToolEntry = Extract<Entry, { kind: "tool" }>;
+
+/** Actualiza la última llamada a una herramienta que siga abierta. */
+function updateLastTool(entries: Entry[], toolName: string, patch: Partial<ToolEntry>): Entry[] {
   for (let i = entries.length - 1; i >= 0; i--) {
     const entry = entries[i]!;
     if (entry.kind === "tool" && entry.toolName === toolName && entry.status !== "ok" && entry.status !== "error") {
       const updated = [...entries];
-      updated[i] = { ...entry, status };
+      updated[i] = { ...entry, ...patch };
       return updated;
     }
   }
   return entries;
 }
 
-function reducer(state: State, action: Action): State {
+export function reducer(state: State, action: Action): State {
   if (action.type === "connection") return { ...state, connected: action.connected };
 
   if (action.type === "user_message") {
@@ -81,8 +93,8 @@ function reducer(state: State, action: Action): State {
     case "confirmation_required":
       return {
         ...state,
-        confirmation: { requestId: event.requestId, toolName: event.toolName, args: event.args },
-        entries: updateLastTool(state.entries, event.toolName, "esperando confirmación"),
+        confirmation: { requestId: event.requestId, toolName: event.toolName, args: event.args, text: event.text },
+        entries: updateLastTool(state.entries, event.toolName, { status: "esperando confirmación" }),
       };
 
     case "confirmation_resolved":
@@ -108,24 +120,29 @@ function reducer(state: State, action: Action): State {
           };
 
         case "tool_call_rejected":
-          return { ...state, entries: updateLastTool(state.entries, inner.toolCall.name, "cancelada") };
+          return { ...state, entries: updateLastTool(state.entries, inner.toolCall.name, { status: "cancelada" }) };
 
         case "tool_call_confirmed":
-          return { ...state, entries: updateLastTool(state.entries, inner.toolCall.name, "pendiente") };
+          return { ...state, entries: updateLastTool(state.entries, inner.toolCall.name, { status: "pendiente" }) };
 
         case "tool_call_result":
           return {
             ...state,
-            entries: updateLastTool(state.entries, inner.toolCall.name, inner.isError ? "error" : "ok"),
+            entries: updateLastTool(state.entries, inner.toolCall.name, {
+              status: inner.isError ? "error" : "ok",
+              result: inner.result,
+              ...(event.summary ? { summary: event.summary } : {}),
+            }),
           };
 
         case "tool_call_protocol_error":
           return {
             ...state,
-            entries: [
-              ...updateLastTool(state.entries, inner.toolCall.name, "error"),
-              { id: nextId(), kind: "error", text: `${inner.toolCall.name}: ${inner.message}` },
-            ],
+            entries: updateLastTool(state.entries, inner.toolCall.name, {
+              status: "error",
+              technicalError: inner.message,
+              ...(event.summary ? { summary: event.summary } : {}),
+            }),
           };
 
         default:

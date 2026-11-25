@@ -19,7 +19,8 @@
     "@restaurant/host": "workspace:*",
     "@restaurant/llm-provider": "workspace:*",
     "react": "^19.2.0",
-    "react-dom": "^19.2.0"
+    "react-dom": "^19.2.0",
+    "@restaurant/presentation": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^26.3.0",

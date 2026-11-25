@@ -1,5 +1,8 @@
 import type { ConversationEvent, LogEntry } from "@restaurant/host";
 import type { ToolSpec } from "@restaurant/llm-provider";
+import type { ConfirmationText, Summary } from "@restaurant/presentation";
+
+export type { ConfirmationText, Summary, Tone } from "@restaurant/presentation";
 
 /**
  * Contrato entre el backend y el navegador.
@@ -16,8 +19,8 @@ export interface SessionState {
   serverSource: string;
   servers: ServerSummary[];
   tools: ToolSpec[];
-  /** Roles entre los que se puede cambiar. */
-  availableRoles: string[];
+  /** Roles entre los que se puede cambiar, con el nombre que ve el personal. */
+  roles: { id: string; label: string }[];
 }
 
 export interface ServerSummary {
@@ -31,11 +34,12 @@ export interface ServerSummary {
 export type ServerEvent =
   | { kind: "state"; state: SessionState }
   | { kind: "assistant"; text: string; iterations: number }
-  | { kind: "conversation"; event: ConversationEvent; serverName?: string }
+  /** `summary` acompaña a los resultados y errores de herramientas, ya en lenguaje de cocina. */
+  | { kind: "conversation"; event: ConversationEvent; serverName?: string; summary?: Summary }
   | { kind: "log"; entries: LogEntry[] }
   | { kind: "error"; message: string }
   /** El backend está esperando que el usuario apruebe una operación sensible. */
-  | { kind: "confirmation_required"; requestId: string; toolName: string; args: Record<string, unknown> }
+  | { kind: "confirmation_required"; requestId: string; toolName: string; args: Record<string, unknown>; text: ConfirmationText }
   | { kind: "confirmation_resolved"; requestId: string; approved: boolean }
   | { kind: "busy"; busy: boolean };
 

@@ -138,4 +138,23 @@ describe("EventBus", () => {
 
     expect(tarde.received.map((e) => e.kind)).toEqual(["state"]);
   });
+
+  it("el registro es un estado: no se acumula en el historial", () => {
+    const bus = new EventBus(5);
+    bus.publish({ kind: "assistant", text: "primera respuesta", iterations: 1 });
+    for (let i = 0; i < 10; i++) bus.publish({ kind: "log", entries: [] });
+    const received: ServerEvent[] = [];
+    bus.subscribe({ send: (e) => received.push(e) });
+    expect(received.filter((e) => e.kind === "log")).toHaveLength(1);
+    expect(received.some((e) => e.kind === "assistant")).toBe(true);
+  });
+
+  it("clearHistory también olvida el registro de la sesión anterior", () => {
+    const bus = new EventBus();
+    bus.publish({ kind: "log", entries: [{ sequence: 1 }] as never });
+    bus.clearHistory();
+    const received: ServerEvent[] = [];
+    bus.subscribe({ send: (e) => received.push(e) });
+    expect(received.some((e) => e.kind === "log")).toBe(false);
+  });
 });

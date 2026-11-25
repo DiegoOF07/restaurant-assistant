@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
-import { HostService, type McpServerConfig } from "@restaurant/host";
+import { describeConfirmation, summarizeProtocolError, summarizeToolResult, type Summary } from "@restaurant/presentation";
+import { HostService, type ConversationEvent, type McpServerConfig } from "@restaurant/host";
 import type { LLMProvider } from "@restaurant/llm-provider";
 import type { EventBus } from "./eventBus.js";
 import type { SessionState, ServerSummary } from "./types.js";
@@ -79,7 +80,7 @@ export class AssistantSession {
       serverSource: this.options.serverSource,
       servers,
       tools,
-      availableRoles: this.options.availableRoles,
+      roles: this.options.availableRoles.map((id) => ({ id, label: ROLE_LABELS[id] ?? id })),
     };
   }
 
@@ -98,7 +99,15 @@ export class AssistantSession {
       const result = await host.sendMessage(SESSION_ID, text, (event) => {
         const serverName =
           "toolCall" in event ? host.serverForTool(event.toolCall.name) : undefined;
-        this.options.bus.publish({ kind: "conversation", event, ...(serverName ? { serverName } : {}) });
+        const summary = summarize(event, host.names());
+        this.options.bus.publish({
+          kind: "conversation",
+          event,
+          ...(serverName ? { serverName } : {}),
+          ...(summary ? { summary } : {}),
+        });
+        // El registro se actualiza en vivo, no solo al terminar el turno
+        this.options.bus.publish({ kind: "log", entries: [...host.getLog(SESSION_ID)] });
       });
 
       this.options.bus.publish({ kind: "assistant", text: result.reply, iterations: result.iterations });
@@ -182,14 +191,17 @@ export class AssistantSession {
       }, CONFIRMATION_TIMEOUT_MS);
 
       this.pending.set(requestId, { resolve, timer });
-      this.options.bus.publish({ kind: "confirmation_required", requestId, toolName, args });
+      const text = describeConfirmation(toolName, args, this.host?.names());
+      this.options.bus.publish({ kind: "confirmation_required", requestId, toolName, args, text });
     });
   }
 
   private rejectAllPending(): void {
-    for (const [, entry] of this.pending) {
+    for (const [requestId, entry] of this.pending) {
       clearTimeout(entry.timer);
       entry.resolve(false);
+      // Sin esto el navegador se quedaría con un diálogo que ya no espera respuesta
+      this.options.bus.publish({ kind: "confirmation_resolved", requestId, approved: false });
     }
     this.pending.clear();
   }
@@ -198,4 +210,12 @@ export class AssistantSession {
     if (!this.host) throw new Error("la sesión no está iniciada; llama a start() primero");
     return this.host;
   }
+}
+
+const ROLE_LABELS: Record<string, string> = { waiter: "Mesero", cook: "Cocina", admin: "Administración" };
+
+function summarize(event: ConversationEvent, names: ReadonlyMap<string, string>): Summary | undefined {
+  if (event.kind === "tool_call_result") return summarizeToolResult(event.toolCall.name, event.result, names);
+  if (event.kind === "tool_call_protocol_error") return summarizeProtocolError(event.toolCall.name, event.message);
+  return undefined;
 }

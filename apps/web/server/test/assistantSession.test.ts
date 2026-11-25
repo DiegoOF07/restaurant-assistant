@@ -21,6 +21,7 @@ function fakeHost() {
       listAvailableTools: async () => [{ name: "adjust_inventory", description: "d", inputSchema: {} }],
       serverForTool: () => config.servers[0]?.name,
       getLog: () => [],
+      names: () => new Map(),
       sendMessage: async () => ({ reply: "listo", iterations: 1 }),
       close: async () => {
         closed.push(id);
@@ -183,6 +184,6 @@ describe("AssistantSession: estado", () => {
     expect(state.userId).toBe("diego");
     expect(state.servers).toHaveLength(1);
     expect(state.servers[0]!.toolNames).toEqual(["adjust_inventory"]);
-    expect(state.availableRoles).toEqual(["waiter", "cook", "admin"]);
+    expect(state.roles.map((r) => r.id)).toEqual(["waiter", "cook", "admin"]);
   });
 });
