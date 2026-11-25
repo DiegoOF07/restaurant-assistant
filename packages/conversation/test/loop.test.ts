@@ -245,6 +245,20 @@ describe("ConversationLoop", () => {
     expect(events.map((e) => e.kind)).toEqual(["tool_call_requested", "tool_call_result"]);
   });
 
+  it("el evento de resultado trae el resultado de la herramienta", async () => {
+    const provider = new MockProvider();
+    provider.enqueueToolCall([{ id: "call-1", name: "get_dish_availability", arguments: {} }]);
+    provider.enqueueText("listo");
+    const toolRunner = new FakeToolRunner([AVAILABILITY_TOOL], {
+      get_dish_availability: () => ({ content: [{ type: "text", text: "ok" }], structuredContent: { maximumServings: 3 } }),
+    });
+    const events: ConversationEvent[] = [];
+    const loop = new ConversationLoop({ provider, toolRunner, onEvent: (e) => events.push(e) });
+    await loop.runTurn(new Session("s1"), "hola");
+    const result = events.find((e) => e.kind === "tool_call_result");
+    expect(result && "result" in result ? result.result.structuredContent : undefined).toEqual({ maximumServings: 3 });
+  });
+
   it("un onEvent por llamada recibe los eventos ADEMÁS del onEvent del constructor, no en su lugar", async () => {
     const provider = new MockProvider();
     provider.enqueueToolCall([{ id: "call-1", name: "get_dish_availability", arguments: {} }]);

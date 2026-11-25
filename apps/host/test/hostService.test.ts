@@ -176,4 +176,83 @@ describe("HostService.create: fallo al arrancar", () => {
       }),
     ).rejects.toThrow(/falta la variable API_KEY/);
   });
+
+  describe("catálogo de nombres", () => {
+    const SEARCH_DISHES: ToolSpec = { name: "search_dishes", description: "", inputSchema: { type: "object" } };
+    const SEARCH_INGREDIENTS: ToolSpec = { name: "search_ingredients", description: "", inputSchema: { type: "object" } };
+    const RECIPE: ToolSpec = { name: "get_recipe_details", description: "", inputSchema: { type: "object" } };
+
+    it("loadCatalog llena el mapa con las búsquedas vacías", async () => {
+      const toolRunner = new FakeToolRunner([SEARCH_DISHES, SEARCH_INGREDIENTS], {
+        search_dishes: () => ({ content: [], structuredContent: { dishes: [{ id: "special-burger", name: "Hamburguesa Especial" }] } }),
+        search_ingredients: () => ({ content: [], structuredContent: { ingredients: [{ id: "lettuce", name: "Lechuga" }] } }),
+      });
+      const host = new HostService({ provider: new MockProvider(), toolRunner });
+      openHosts.push(host);
+      await host.loadCatalog();
+      expect(host.names().get("lettuce")).toBe("Lechuga");
+      expect(host.names().get("special-burger")).toBe("Hamburguesa Especial");
+      expect(toolRunner.calls).toEqual([
+        { name: "search_dishes", args: { name: "" } },
+        { name: "search_ingredients", args: { name: "" } },
+      ]);
+    });
+
+    it("sin esas herramientas no falla y el mapa queda vacío", async () => {
+      const host = new HostService({ provider: new MockProvider(), toolRunner: new FakeToolRunner([], {}) });
+      openHosts.push(host);
+      await host.loadCatalog();
+      expect(host.names().size).toBe(0);
+    });
+
+    it("cada resultado de un turno agrega sus nombres", async () => {
+      const provider = new MockProvider();
+      provider.enqueueToolCall([{ id: "c1", name: "get_recipe_details", arguments: { dishId: "cake" } }]);
+      provider.enqueueText("listo");
+      const toolRunner = new FakeToolRunner([RECIPE], {
+        get_recipe_details: () => ({
+          content: [],
+          structuredContent: { dishId: "cake", dishName: "Pastel", ingredients: [{ ingredientId: "flour", name: "Harina" }] },
+        }),
+      });
+      const host = new HostService({ provider, toolRunner });
+      openHosts.push(host);
+      await host.sendMessage("s", "receta del pastel");
+      expect(host.names().get("flour")).toBe("Harina");
+      expect(host.names().get("cake")).toBe("Pastel");
+    });
+  });
+
+  describe("catálogo: fallas al arrancar", () => {
+    it("si listar herramientas falla, loadCatalog no lanza", async () => {
+      const toolRunner: ToolRunner = {
+        listTools: async () => {
+          throw new Error("nombre de herramienta duplicado");
+        },
+        callTool: async () => ({ content: [] }),
+      };
+      const host = new HostService({ provider: new MockProvider(), toolRunner });
+      openHosts.push(host);
+      await expect(host.loadCatalog()).resolves.toBeUndefined();
+    });
+
+    it("un servidor lento no retrasa el arranque más que el límite", async () => {
+      vi.useFakeTimers();
+      try {
+        const toolRunner: ToolRunner = {
+          listTools: async () => [{ name: "search_dishes", description: "", inputSchema: { type: "object" } }],
+          callTool: () => new Promise(() => {}),
+        };
+        const host = new HostService({ provider: new MockProvider(), toolRunner });
+        openHosts.push(host);
+        let done = false;
+        const loading = host.loadCatalog(2000).then(() => (done = true));
+        await vi.advanceTimersByTimeAsync(2100);
+        await loading;
+        expect(done).toBe(true);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+  });
 });

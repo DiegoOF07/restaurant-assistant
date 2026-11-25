@@ -8,6 +8,7 @@ import { MultiServerToolRunner } from "./multiServerToolRunner.js";
 import { SessionManager } from "./sessionManager.js";
 import { McpServerStartupError } from "./startupError.js";
 import type { LogEntry, McpServerConfig } from "./types.js";
+import { namesFromResult, type Names } from "@restaurant/presentation";
 
 /** Construcción directa, con un ToolRunner ya armado. Para pruebas; en producción se usa create(). */
 export interface HostServiceOptions {
@@ -45,6 +46,8 @@ export class HostService {
   private readonly sessionContext: SessionContext;
   private readonly mcpClients: McpClient[];
   private readonly toolRunner: ToolRunner;
+  // id interno -> nombre legible, para que confirmaciones y resúmenes no muestren ids
+  private readonly catalog = new Map<string, string>();
 
   constructor(
     options: HostServiceOptions,
@@ -115,7 +118,7 @@ export class HostService {
 
     const toolRunner = new MultiServerToolRunner(namedServers);
 
-    return new HostService(
+    const host = new HostService(
       {
         provider: config.provider,
         toolRunner,
@@ -126,6 +129,8 @@ export class HostService {
       },
       { logger, sessionContext, mcpClients },
     );
+    await host.loadCatalog();
+    return host;
   }
 
   /**
@@ -145,6 +150,7 @@ export class HostService {
     try {
       return await this.loop.runTurn(session, userInput, {
         onEvent: (event) => {
+          if (event.kind === "tool_call_result") this.learnNames(event.toolCall.name, event.result.structuredContent);
           this.logger.recordConversationEvent(sessionId, event);
           onEvent?.(event);
         },
@@ -158,6 +164,47 @@ export class HostService {
    * en el orden en que ocurrieron los eventos */
   getLog(sessionId: string): readonly LogEntry[] {
     return this.logger.getEntries(sessionId);
+  }
+
+  /** Nombres conocidos (platillos e ingredientes) para presentar resultados y confirmaciones. */
+  names(): Names {
+    return this.catalog;
+  }
+
+  /**
+   * Carga el catálogo una vez con búsquedas vacías, en los servidores que las tengan. Así una
+   * confirmación puede nombrar un ingrediente aunque nadie lo haya buscado antes. Nunca falla
+   * ni tarda más de `timeoutMs`: sin catálogo solo se pierden nombres, no la conversación.
+   */
+  async loadCatalog(timeoutMs = 5000): Promise<void> {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const deadline = new Promise<void>((resolve) => {
+      timer = setTimeout(resolve, timeoutMs);
+    });
+    try {
+      await Promise.race([this.fetchCatalog(), deadline]);
+    } catch {
+      // Un servidor que falla aquí no impide conversar
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  private async fetchCatalog(): Promise<void> {
+    const available = new Set((await this.toolRunner.listTools()).map((t) => t.name));
+    for (const tool of ["search_dishes", "search_ingredients"]) {
+      if (!available.has(tool)) continue;
+      try {
+        const result = await this.toolRunner.callTool(tool, { name: "" });
+        if (!result.isError) this.learnNames(tool, result.structuredContent);
+      } catch {
+        // Solo se pierden los nombres de este servidor
+      }
+    }
+  }
+
+  private learnNames(toolName: string, structured: unknown): void {
+    for (const [id, name] of namesFromResult(toolName, structured)) this.catalog.set(id, name);
   }
 
   async listAvailableTools(): Promise<ToolSpec[]> {

@@ -114,7 +114,7 @@ export class ConversationLoop {
 
     try {
       const execResult = await this.options.toolRunner.callTool(toolCall.name, toolCall.arguments);
-      emit({ kind: "tool_call_result", toolCall, isError: !!execResult.isError, timestamp: Date.now() });
+      emit({ kind: "tool_call_result", toolCall, isError: !!execResult.isError, result: execResult, timestamp: Date.now() });
 
       session.appendMessage({
         role: "tool",

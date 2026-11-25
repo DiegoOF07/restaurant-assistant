@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
@@ -300,5 +300,27 @@ describe("resolveServers: servidores remotos", () => {
     expect(resolved.servers).toHaveLength(2);
     expect(resolved.servers[0]!.command).toBeDefined();
     expect(resolved.servers[1]!.url).toBeDefined();
+  });
+});
+
+describe("avisos de http inseguro", () => {
+  it("no avisa por un servidor desactivado", () => {
+    fakeBinary();
+    writeConfig({ servers: [
+      { name: "local", command: "./servidor" },
+      { name: "remoto", enabled: false, url: "http://192.168.1.50:8080/mcp" },
+    ] });
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    resolveServers({ baseDir, env: {} });
+    expect(warn).not.toHaveBeenCalled();
+    warn.mockRestore();
+  });
+
+  it("sí avisa por un servidor activo", () => {
+    writeConfig({ servers: [{ name: "remoto", url: "http://192.168.1.50:8080/mcp" }] });
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    resolveServers({ baseDir, env: {} });
+    expect(warn).toHaveBeenCalledTimes(1);
+    warn.mockRestore();
   });
 });

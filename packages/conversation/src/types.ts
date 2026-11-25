@@ -29,7 +29,7 @@ export type ConversationEvent =
   | { kind: "tool_call_confirmation_required"; toolCall: ToolCall; timestamp: number }
   | { kind: "tool_call_confirmed"; toolCall: ToolCall; timestamp: number }
   | { kind: "tool_call_rejected"; toolCall: ToolCall; timestamp: number }
-  | { kind: "tool_call_result"; toolCall: ToolCall; isError: boolean; timestamp: number }
+  | { kind: "tool_call_result"; toolCall: ToolCall; isError: boolean; result: ToolExecutionResult; timestamp: number }
   | { kind: "tool_call_protocol_error"; toolCall: ToolCall; message: string; timestamp: number }
   | { kind: "iteration_limit_reached"; iterations: number; timestamp: number };
 

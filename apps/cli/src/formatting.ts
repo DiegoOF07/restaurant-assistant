@@ -1,73 +1,80 @@
 import type { LogEntry } from "@restaurant/host";
 import type { ToolSpec } from "@restaurant/llm-provider";
-import { blue, bold, box, cyan, dim, gray, green, magenta, red, symbols, yellow } from "./theme.js";
+import { humanizeToolName, type Summary, type Tone } from "@restaurant/presentation";
+import { blue, bold, cyan, dim, gray, green, magenta, red, symbols, terminalWidth, visibleWidth, yellow } from "./theme.js";
 
-/** Datos de la sesión que se muestran en el encabezado. */
-export interface BannerInfo {
-  tools: ToolSpec[];
+/** Datos de la sesión que se muestran al arrancar. */
+export interface StartupInfo {
   userRole: string;
   userId: string;
   /** Modelo en uso, o undefined si se está usando el proveedor de demostración. */
   model?: string;
-  /** De dónde salió la lista de servidores, para que se vea qué archivo hay que editar. */
-  serverSource: string;
   serverNames: string[];
-  /** Servidor que expone cada herramienta; sólo se muestra si hay más de uno. */
-  serverForTool?: (toolName: string) => string | undefined;
+  width?: number;
 }
 
-/** Encabezado de arranque: identidad, modelo, servidores y catálogo de herramientas. */
-export function formatWelcomeBanner(info: BannerInfo): string {
-  const header = box(
-    [
-      bold("Asistente MCP de Restaurante"),
-      dim("Host + cliente MCP sobre JSON-RPC 2.0, sin SDK"),
-    ],
-    { color: cyan },
-  );
+const ROLE_LABELS: Record<string, string> = { cook: "Cocina", waiter: "Mesero", admin: "Administración" };
 
-  const multipleServers = info.serverNames.length > 1;
-  const lines: string[] = [
-    "",
-    `${gray("sesión")}    ${bold(info.userId)} ${dim("·")} rol ${roleBadge(info.userRole)}`,
-    `${gray("modelo")}    ${info.model ? bold(info.model) : yellow("demostración (sin API key)")}`,
-    `${gray("servidor")}  ${info.serverNames.map((n) => bold(n)).join(dim(", "))} ${dim(`(${info.serverSource})`)}`,
-    "",
-    bold(`Herramientas disponibles (${info.tools.length})`),
-  ];
+export function roleLabel(role: string): string {
+  return ROLE_LABELS[role] ?? role;
+}
 
-  if (info.tools.length === 0) {
-    lines.push(dim("  (ninguna)"));
-  } else {
-    for (const tool of info.tools) {
-      const origin = multipleServers ? info.serverForTool?.(tool.name) : undefined;
-      lines.push(`  ${cyan(symbols.bullet)} ${bold(tool.name)}${origin ? dim(` · ${origin}`) : ""}`);
-      lines.push(`    ${dim(truncate(describe(tool), 200))}`);
+/** Arranque corto: quién eres, con qué modelo, qué servidores y cómo pedir ayuda. */
+export function formatStartup(info: StartupInfo): string {
+  const width = Math.min(info.width ?? terminalWidth(), 72);
+  return [
+    red("─".repeat(Math.min(width, 40))),
+    `${bold("La Comanda")} ${dim("· asistente de cocina")}`,
+    `${gray("rol")}        ${roleBadge(info.userRole)} ${dim("·")} ${gray("usuario")} ${info.userId}`,
+    `${gray("modelo")}     ${info.model ? bold(info.model) : yellow("demostración (sin API key)")}`,
+    `${gray("servidores")} ${info.serverNames.map((n) => bold(n)).join(dim(", "))}`,
+    dim(`Escribe ${command("/ayuda")} para ver los comandos.`),
+  ].join("\n");
+}
+
+const TONE_STYLE: Record<Tone, [string, (t: string) => string]> = {
+  ok: [symbols.ok, green],
+  warn: [symbols.warn, yellow],
+  error: [symbols.fail, red],
+  info: [symbols.bullet, cyan],
+};
+
+/** Un resultado ya traducido a lenguaje de cocina: título con su tono, líneas y una tabla corta. */
+export function renderSummary(summary: Summary): string {
+  const [icon, paint] = TONE_STYLE[summary.tone];
+  const out = [`${paint(`${icon} ${bold(summary.title)}`)}`];
+  for (const line of summary.lines) out.push(`  ${line}`);
+  if (summary.items?.length) {
+    const labelWidth = Math.max(...summary.items.map((i) => visibleWidth(i.label)));
+    for (const item of summary.items) {
+      const value = item.tone ? TONE_STYLE[item.tone][1](item.value) : dim(item.value);
+      out.push(`  ${item.label.padEnd(labelWidth)}  ${value}`);
     }
   }
+  return out.join("\n");
+}
 
-  lines.push(
-    "",
-    `${bold("Comandos")}  ${command("/tools")} ${command("/servers")} ${command("/log")} ${command("/clear")} ${command("/help")} ${command("/exit")}`,
-    dim("Escribe tu mensaje y presiona Enter."),
-    "",
-  );
-
-  return `${header}\n${lines.join("\n")}`;
+/** Línea mientras corre una herramienta, con su nombre legible. */
+export function formatToolRunning(toolName: string): string {
+  return `${blue(symbols.tool)} ${dim(`${humanizeToolName(toolName)}…`)}`;
 }
 
 /** Tabla de comandos, con los nombres alineados. */
 export function formatHelp(): string {
   const rows: Array<[string, string]> = [
-    ["/tools", "lista las herramientas MCP descubiertas y qué servidor las expone"],
-    ["/servers", "muestra los servidores MCP conectados y de dónde salió su configuración"],
-    ["/log", "muestra el registro del protocolo MCP y del ciclo de conversación"],
-    ["/clear", "limpia la pantalla sin perder el historial de la conversación"],
-    ["/help", "muestra esta ayuda"],
-    ["/exit", "cierra la sesión (también funciona Ctrl+D)"],
+    ["/ayuda", "muestra esta ayuda"],
+    ["/herramientas", "herramientas MCP y qué servidor las expone"],
+    ["/servidores", "servidores conectados, desactivados y avisos de configuración"],
+    ["/registro", "registro del protocolo MCP y del ciclo de conversación"],
+    ["/detalles", "la última llamada en crudo: herramienta, argumentos y resultado"],
+    ["/limpiar", "limpia la pantalla sin perder la conversación"],
+    ["/salir", "cierra la sesión (también Ctrl+D)"],
   ];
   const width = Math.max(...rows.map(([name]) => name.length));
-  return rows.map(([name, description]) => `  ${command(name.padEnd(width))}  ${dim(description)}`).join("\n");
+  return [
+    ...rows.map(([name, description]) => `  ${command(name.padEnd(width))}  ${dim(description)}`),
+    dim("  Los nombres en inglés (/help, /tools, /exit…) también funcionan."),
+  ].join("\n");
 }
 
 /** Lista de herramientas para /tools. */
@@ -105,37 +112,9 @@ export function formatAssistantReply(reply: string): string {
   return `\n${magenta(symbols.robot)} ${bold("asistente")}\n${indent(reply, "  ")}\n`;
 }
 
-/** Actividad en vivo: el asistente decidió llamar a una herramienta. */
-export function formatToolCallLine(toolName: string, args: Record<string, unknown>, server?: string): string {
-  const rendered = renderArgs(args);
-  return `${blue(symbols.tool)} ${bold(toolName)}${server ? dim(` · ${server}`) : ""}${rendered ? dim(`(${rendered})`) : ""}`;
-}
-
-/** Cierre de una llamada. Un error de negocio se marca, pero no interrumpe la conversación. */
-export function formatToolResultLine(toolName: string, isError: boolean): string {
-  return isError
-    ? `${red(symbols.fail)} ${bold(toolName)} ${red("devolvió un error")}`
-    : `${green(symbols.ok)} ${bold(toolName)} ${dim("listo")}`;
-}
-
-/** Argumentos en una línea, recortados: el detalle completo queda en /log. */
-function renderArgs(args: Record<string, unknown>): string {
-  const parts = Object.entries(args).map(([key, value]) => `${key}=${truncate(stringify(value), 40)}`);
-  return truncate(parts.join(", "), 100);
-}
-
-function stringify(value: unknown): string {
-  return typeof value === "string" ? value : JSON.stringify(value) ?? String(value);
-}
-
 /** Error destacado en rojo, separado del texto del asistente por líneas en blanco. */
 export function formatError(message: string): string {
   return `\n${red(`${symbols.fail} ${bold("Error")}`)} ${message}\n`;
-}
-
-/** Aviso que no impide continuar, por ejemplo arrancar sin API key. */
-export function formatWarning(message: string): string {
-  return `${yellow(`${symbols.warn} ${message}`)}`;
 }
 
 /** Nota informativa de una línea. */
@@ -156,13 +135,13 @@ export function formatLogEntry(entry: LogEntry): string {
 function roleBadge(role: string): string {
   switch (role) {
     case "admin":
-      return magenta(bold(role));
+      return magenta(bold(roleLabel(role)));
     case "cook":
-      return yellow(bold(role));
+      return yellow(bold(roleLabel(role)));
     case "waiter":
-      return green(bold(role));
+      return green(bold(roleLabel(role)));
     default:
-      return red(`${bold(role)} (desconocido, el servidor usará waiter)`);
+      return red(`${bold(role)} (desconocido, el servidor lo tratará como Mesero)`);
   }
 }
 
@@ -177,6 +156,3 @@ function indent(text: string, prefix: string): string {
     .join("\n");
 }
 
-function truncate(text: string, max: number): string {
-  return text.length <= max ? text : `${text.slice(0, max - 1)}…`;
-}

@@ -15,7 +15,8 @@
   "dependencies": {
     "@restaurant/conversation": "workspace:*",
     "@restaurant/host": "workspace:*",
-    "@restaurant/llm-provider": "workspace:*"
+    "@restaurant/llm-provider": "workspace:*",
+    "@restaurant/presentation": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^26.3.0",

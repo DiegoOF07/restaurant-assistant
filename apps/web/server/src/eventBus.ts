@@ -11,7 +11,7 @@ export interface Subscriber {
  * Se guarda sólo el ÚLTIMO de cada tipo y se manda a quien se conecte. No van al historial:
  * repetir cada `busy` pasado dejaría la interfaz con un spinner colgado.
  */
-const SNAPSHOT_KINDS = new Set<ServerEvent["kind"]>(["state", "busy"]);
+const SNAPSHOT_KINDS = new Set<ServerEvent["kind"]>(["state", "busy", "log"]);
 
 /**
  * Reparte eventos a los navegadores conectados.
@@ -67,5 +67,7 @@ export class EventBus {
    */
   clearHistory(): void {
     this.recent.length = 0;
+    // El registro pertenece a la sesión que se cerró; el estado y busy siguen vigentes
+    this.snapshots.delete("log");
   }
 }

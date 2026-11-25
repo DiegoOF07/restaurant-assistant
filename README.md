@@ -12,6 +12,10 @@ call live. The recipe and inventory MCP server lives in a separate repository:
 >
 > Note: the assistant's user-facing strings are in **Spanish** by design.
 
+![La Comanda: the assistant in the browser, showing a dish's availability and a confirmed inventory adjustment](docs/img/web.png)
+
+The assistant talks to restaurant staff in kitchen language ("No alcanza para 1 porción: falta queso cheddar"). The protocol isn't hidden: every result has a "Ver detalles" fold with the tool, its arguments and the JSON-RPC response, and the MCP log updates live.
+
 ---
 
 ## Table of contents
@@ -36,7 +40,9 @@ call live. The recipe and inventory MCP server lives in a separate repository:
 
 ```
 apps/cli          Terminal interface: REPL, colors, confirmations, server config file
+apps/web          "La Comanda" web interface: Node server (SSE) and React client
 apps/host         HostService: orchestrates LLM + MCP servers and keeps the unified log
+packages/presentation   Results and confirmations in kitchen language (CLI and web say the same)
 packages/mcp-client     MCP client: JSON-RPC 2.0, handshake, stdio transport
 packages/llm-provider   LLMProvider interface + Anthropic adapter + test double
 packages/conversation   Tool-calling loop, sessions and confirmations
@@ -101,7 +107,7 @@ nothing at all.
 ```bash
 # 1. Build the MCP server (in the other repository)
 cd ../restaurant-mcp-server
-go build -o bin/restaurant-mcp-server ./cmd/stdio
+go build -o bin/restaurant-mcp-server ./cmd/server
 
 # 2. Install and build this project
 cd ../restaurant-assistant
@@ -115,8 +121,10 @@ cp apps/cli/mcp.servers.json.example apps/cli/mcp.servers.json
 # 4. (Optional) Configure the API key and role
 cp apps/cli/.env.example apps/cli/.env
 
-# 5. Run it
+# 5. Run it in the terminal…
 pnpm --filter @restaurant/cli start
+#    …or in the browser (http://127.0.0.1:5173; another port with WEB_PORT=5200)
+pnpm --filter @restaurant/web start
 ```
 
 > **Windows and WSL don't mix.** Pick one and stay there. A Go binary built inside WSL is a
@@ -236,45 +244,46 @@ pnpm --filter @restaurant/cli start -- --config ./demos/two-servers.json
 
 ## Using the CLI
 
-```
-╭──────────────────────────────────────────────────────────╮
-│ Asistente MCP de Restaurante                             │
-│ Host + cliente MCP sobre JSON-RPC 2.0, sin SDK           │
-╰──────────────────────────────────────────────────────────╯
+![The CLI: short startup, readable results and an adjustment confirmation](docs/img/cli.png)
 
-sesión    diego · rol cook
-modelo    claude-haiku-4-5
-servidor  restaurant-local (mcp.servers.json)
-
-Herramientas disponibles (5)
-  • search_dishes
-    Busca platillos del menú por nombre...
-```
-
-Each tool call is shown as it happens:
-
-```
-⚙ get_recipe_details · restaurant-local (dishId=chocolate-cake)
-✓ get_recipe_details listo
-
-◆ asistente
-  El Pastel de Chocolate lleva harina de trigo (gluten), chocolate amargo...
-```
+Startup only says who you are, which model and which servers; the tool list, disabled servers and their warnings live in `/herramientas` and `/servidores`. Every call shows its result in kitchen language, and `/detalles` prints the last one raw.
 
 ### Commands
 
-| Command | What it does |
-|---|---|
-| `/tools` | Discovered tools, their parameters, and which server exposes them |
-| `/servers` | Connected servers and how many tools each contributes |
-| `/log` | Unified log: MCP messages and conversation-loop events |
-| `/clear` | Clears the screen without losing conversation history |
-| `/help` | Help |
-| `/exit` | Ends the session (`Ctrl+D` also works) |
+| Command | Alias | What it does |
+|---|---|---|
+| `/ayuda` | `/help` | Help |
+| `/herramientas` | `/tools` | Discovered tools, their parameters, and which server exposes them |
+| `/servidores` | `/servers` | Connected and disabled servers, plus configuration warnings |
+| `/registro` | `/log` | Unified log: MCP messages and conversation-loop events |
+| `/detalles` | — | The last call, raw: tool, arguments and result |
+| `/limpiar` | `/clear` | Clears the screen without losing conversation history |
+| `/salir` | `/exit` | Ends the session (`Ctrl+D` also works) |
+
+A mistyped command suggests the closest one (`/detalle` → `/detalles`).
 
 **Color.** Enabled only when output is a terminal. `NO_COLOR=1` turns it off, `FORCE_COLOR=1`
 forces it on. Symbols degrade to ASCII when the terminal doesn't declare UTF-8, and redirecting
 to a file leaves no stray escape codes.
+
+---
+
+## Web interface
+
+`pnpm --filter @restaurant/web start` serves the interface at `http://127.0.0.1:5173` (`WEB_PORT` changes the port). It uses the same configuration as the CLI (`apps/cli/.env` and `mcp.servers.json`).
+
+- **Tickets:** each tool call appears as a ticket with a readable result and a folded "Ver detalles" with the technical side.
+- **Plain confirmation:** "¿Descontar 200 g de Lechuga?", with the raw arguments one click away.
+- **Role:** the selector relaunches the servers with the chosen role; as Mesero (waiter), the server rejects the adjustment and the ticket explains it.
+- **Phone:** the conversation takes the whole screen; servers and the log open in a "Detalles" sheet.
+
+| Confirmation | Phone |
+|---|---|
+| ![Confirmation dialog in kitchen language](docs/img/web-confirmacion.png) | ![La Comanda on a phone](docs/img/web-movil.png) |
+
+### Design
+
+The identity is called **Comanda**: the paper of a kitchen order slip. Cream paper (`#f6f0e4`), brown ink (`#2b211a`) and stamp red (`#b3261e`) for what matters; data is set in IBM Plex Mono, like a printed ticket, and headings in Fraunces. It is light on purpose: it reads better on a tablet in a brightly lit kitchen.
 
 ---
 
@@ -308,34 +317,34 @@ prompt forbids inferring them: on an allergy question, a made-up answer is a rea
 ### 3. Adjusting inventory, with confirmation
 
 ```
-▸ tú › se dañó queso, descuenta 10 gramos
+▸ tú › se dañaron 200 g de lechuga
 
-╭ ▲ Operación sensible ─────────────────────────────────────╮
-│ Se requiere tu confirmación — esta operación modifica datos│
-│                                                            │
-│   herramienta      adjust_inventory                        │
-│   ingredientId     cheese                                  │
-│   operation        subtract                                │
-│   quantity         10                                      │
-│   idempotencyKey   cli-demo-1788732710842-rmeamj           │
-╰────────────────────────────────────────────────────────────╯
+⚙ Buscar ingredientes…
+• 1 ingrediente
+  Lechuga  500 g
+
+⚙ Ajuste de inventario…
+
+╭ ▲ Confirmar ─────────────────────────────────────────╮
+│ ¿Descontar 200 g de Lechuga?                         │
+│ Motivo: Se dañó.                                     │
+╰──────────────────────────────────────────────────────╯
 
 ¿Confirmas? [s/N] s
 ✓ Operación confirmada.
+
+✓ Inventario actualizado
+  Lechuga: 500 g → 300 g
 ```
 
-Only an explicit "sí" approves: a blank Enter, anything else, or EOF all cancel. The
-`idempotencyKey` ensures a retry does not subtract twice.
+Only an explicit "sí" approves: a blank Enter, anything else, or EOF all cancel. The confirmation is built from the real arguments, and the `idempotencyKey` (visible with `/detalles`) ensures a retry does not subtract twice.
 
 ### 4. A denied permission, explained
 
-With `MCP_USER_ROLE=waiter`, the same operation is confirmed in the interface and the server
-**still** rejects it. The assistant explains it instead of crashing:
+With `MCP_USER_ROLE=waiter` (Mesero), the same operation is confirmed in the interface and the server **still** rejects it, with a message staff can understand:
 
 ```
-◆ asistente
-  No tengo autorización para ajustar inventario con tu rol actual. Sólo cocina
-  (cook) o administración (admin) pueden hacerlo.
+✗ Tu rol (Mesero) no puede ajustar el inventario.
 ```
 
 ### 5. Several servers at once
@@ -352,8 +361,8 @@ The CLI **transports** the role; the server **validates** it.
 
 | Role | Read | Adjust inventory |
 |---|---|---|
-| `waiter` (default) | ✅ | ❌ |
-| `cook` | ✅ | ✅ |
+| `waiter` (Mesero) | ✅ | ❌ |
+| `cook` (Cocina, default) | ✅ | ✅ |
 | `admin` | ✅ | ✅ |
 
 ```bash
@@ -398,12 +407,13 @@ All are optional and read from `apps/cli/.env` (git-ignored) or the shell.
 |---|---|---|
 | `ANTHROPIC_API_KEY` | — | Without it, the demo provider is used |
 | `ANTHROPIC_MODEL` | `claude-haiku-4-5` | Model to use |
-| `MCP_USER_ROLE` | `waiter` | Role transported to the servers |
+| `MCP_USER_ROLE` | `cook` | Role transported to the servers |
 | `MCP_USER_ID` | `unspecified` | Recorded in each adjustment's audit trail |
 | `MCP_CONFIG_FILE` | — | An alternative server config file |
 | `MCP_SERVER_BIN` | — | Single server, when there is no config file |
 | `MCP_SERVER_ARGS` | — | Arguments for that single server |
 | `HOST_MAX_ITERATIONS` | `8` | Cap on tool-calling rounds per turn |
+| `WEB_PORT` | `5173` | Web interface port |
 | `NO_COLOR` / `FORCE_COLOR` | — | Disable or force color |
 
 ---
